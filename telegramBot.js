@@ -8,6 +8,11 @@ const { RestClientV5 } = require('bybit-api'); // 👈 AGGIUNGILA QUI se manca
 const { getConfig, loadDynamic, saveDynamic } = require('./conf');
 require('dotenv').config();
 
+if (!globalThis.crypto) {
+  globalThis.crypto = require('crypto');
+}
+
+
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const binance = Binance({
   apiKey: process.env.BINANCE_API_KEY,
