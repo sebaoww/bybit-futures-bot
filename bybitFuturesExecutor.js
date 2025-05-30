@@ -5,10 +5,12 @@ const { EMA, RSI, ADX } = require('technicalindicators');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 const { getConfig, loadDynamic } = require('./conf');
 require('dotenv').config();
+
 if (!globalThis.crypto) {
   globalThis.crypto = require('crypto');
 }
-const logger = require('./logger'); // ✅ AGGIUNGILA QUI
+
+const logger = require('./logger');
 const { analyzeSignalV9 } = require('./strategy_futures');
 const LIVE_MODE = process.env.LIVE_MODE === 'true';
 const DRY_RUN = process.env.DRY_RUN === 'true';
@@ -30,13 +32,17 @@ const statePath = './.botstate.json';
 console.log('🔑 API Key in uso (Bybit):', process.env.BYBIT_API_KEY);
 
 const client = new RestClientV5({
-  key: process.env.BYBIT_API_KEY,      // ✅ CHIAVE CORRETTA
+  key: process.env.BYBIT_API_KEY,
   secret: process.env.BYBIT_API_SECRET
 });
-let botState = { active: true };
+
+// ✅ Carica lo stato del bot
+let botState = { active: true, verbose: false };
 if (fs.existsSync(statePath)) {
   botState = JSON.parse(fs.readFileSync(statePath, 'utf8'));
 }
+
+const VERBOSE_MODE = botState.verbose === true;
 
 function loadEntries() {
   try {
@@ -313,16 +319,22 @@ async function getPrices() {
   async function run() {
     const config = getConfig('bybit');
   
-    const tp = TP_PERCENT;
-    const sl = SL_PERCENT;
-  
     // ✅ Legge dinamico dal file JSON, fallback su .env
     const dynamic = fs.existsSync('./bybitDynamic.json')
-    ? JSON.parse(fs.readFileSync('./bybitDynamic.json', 'utf8'))
-    : {};
-  const trailing = Number.isFinite(dynamic.TRAILING_STOP)
-    ? dynamic.TRAILING_STOP
-    : parseFloat(process.env.BYBIT_TRAILING_STOP || '2');
+      ? JSON.parse(fs.readFileSync('./bybitDynamic.json', 'utf8'))
+      : {};
+  
+    const tp = Number.isFinite(dynamic.BYBIT_TP_PERCENT)
+      ? dynamic.BYBIT_TP_PERCENT
+      : parseFloat(process.env.BYBIT_TP_PERCENT || '3');
+  
+    const sl = Number.isFinite(dynamic.BYBIT_SL_PERCENT)
+      ? dynamic.BYBIT_SL_PERCENT
+      : parseFloat(process.env.BYBIT_SL_PERCENT || '1.5');
+  
+    const trailing = Number.isFinite(dynamic.TRAILING_STOP)
+      ? dynamic.TRAILING_STOP
+      : parseFloat(process.env.BYBIT_TRAILING_STOP || '2');
   
   
   
@@ -392,7 +404,17 @@ await sendTelegram(
           0,
           Date.now()
         );
-  
+        if (VERBOSE_MODE) {
+          const { signal, indicators } = signalData;
+          const signalText = signal ? `📢 *Segnale ${signal}*` : '❌ Nessun segnale valido.';
+          const verboseMsg = `📊 *${pair}*\n` +
+            `EMA: ${indicators.ema9_5m?.toFixed(4)} vs ${indicators.ema25_5m?.toFixed(4)}\n` +
+            `RSI: ${indicators.rsi_5m?.toFixed(2)}\n` +
+            `ADX: ${indicators.adx_5m?.toFixed(2)}\n` +
+            `${signalText}`;
+          await sendTelegram(verboseMsg);
+        }
+        
         if (signalData.signal) {
           console.log(`✅ Segnale ${signalData.signal} rilevato per ${pair}`);
           await executeFutures(
@@ -429,4 +451,3 @@ await sendTelegram(
   }
   setInterval(run, 5 * 60 * 1000);
   run();
-    
