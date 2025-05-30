@@ -377,6 +377,26 @@ bot.command('fstatus', async (ctx) => {
     });
   }
 });
+// ✅ /fverbose on/off
+bot.command('fverbose', (ctx) => {
+  const text = ctx.message.text.trim().toLowerCase();
+  const args = text.split(' ');
+  const arg = args[1];
+
+  const state = loadBotState();
+
+  if (arg === 'on') {
+    state.verbose = true;
+    saveBotState(state);
+    ctx.reply('🔍 Modalità VERBOSE attivata ✅');
+  } else if (arg === 'off') {
+    state.verbose = false;
+    saveBotState(state);
+    ctx.reply('🔕 Modalità VERBOSE disattivata ❌');
+  } else {
+    ctx.reply('❓ Usa: /fverbose on oppure /fverbose off');
+  }
+});
 
 // /fstats - Statistiche Bybit
 bot.command('fstats', (ctx) => {
@@ -464,8 +484,39 @@ bot.command('allpositions', (ctx) => {
   ctx.replyWithMarkdown(msg);
 });
 
+// 📊 Comando per attivare la modalità verbose (ricevi tutti i segnali)
+bot.command('verboseon', async (ctx) => {
+  const botStatePath = './.botstate.json';
+  if (fs.existsSync(botStatePath)) {
+    const state = JSON.parse(fs.readFileSync(botStatePath, 'utf8'));
+    state.verbose = true;
+    fs.writeFileSync(botStatePath, JSON.stringify(state, null, 2));
+    ctx.reply('🔔 VERBOSE_MODE attivato. Riceverai tutti i segnali anche se non validi.');
+  } else {
+    ctx.reply('❌ Stato bot non trovato.');
+  }
+});
 
+// 📴 Comando per disattivare la modalità verbose
+bot.command('verboseoff', async (ctx) => {
+  const botStatePath = './.botstate.json';
+  if (fs.existsSync(botStatePath)) {
+    const state = JSON.parse(fs.readFileSync(botStatePath, 'utf8'));
+    state.verbose = false;
+    fs.writeFileSync(botStatePath, JSON.stringify(state, null, 2));
+    ctx.reply('🔕 VERBOSE_MODE disattivato. Riceverai solo segnali con esecuzione reale.');
+  } else {
+    ctx.reply('❌ Stato bot non trovato.');
+  }
+});
 
+// ✅ /frestart — Riavvia il bot (funziona su Railway/Render/autostart)
+bot.command('frestart', (ctx) => {
+  ctx.reply('♻️ Riavvio del bot in corso...');
+  setTimeout(() => {
+    process.exit(0); // Railway o Render lo riavvieranno automaticamente
+  }, 1000);
+});
 
 
 // Avvio bot
