@@ -12,7 +12,6 @@ if (!globalThis.crypto) {
   globalThis.crypto = require('crypto');
 }
 
-
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const binance = Binance({
   apiKey: process.env.BINANCE_API_KEY,
@@ -164,6 +163,24 @@ bot.command('fsettp', (ctx) => {
 
   ctx.reply(`✅ Take Profit Bybit aggiornato a ${value}%`);
 });
+// /ftrailing
+bot.command('ftrailing', (ctx) => {
+  if (ctx.chat.id.toString() !== process.env.CHAT_ID) return;
+  const value = parseFloat(ctx.message.text.split(' ')[1]);
+  if (isNaN(value) || value < 0 || value > 100) {
+    return ctx.reply('❌ Valore non valido. Usa: /ftrailing 0.75');
+  }
+
+  const configPath = './bybitDynamic.json';
+  let config = {};
+  if (fs.existsSync(configPath)) {
+    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  }
+  config.TRAILING_STOP = value;
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+  ctx.reply(`✅ Trailing Stop Bybit aggiornato a ${value}%`);
+});
 
 // /fsetsl
 bot.command('fsetsl', (ctx) => {
@@ -182,6 +199,24 @@ bot.command('fsetsl', (ctx) => {
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 
   ctx.reply(`✅ Stop Loss Bybit aggiornato a ${value}%`);
+});
+// /ftrailing - modifica trailing stop Bybit
+bot.command('ftrailing', (ctx) => {
+  if (ctx.chat.id.toString() !== process.env.CHAT_ID) return;
+  const value = parseFloat(ctx.message.text.split(' ')[1]);
+  if (isNaN(value) || value < 0.1 || value > 10) {
+    return ctx.reply('❌ Valore non valido. Usa: /ftrailing 0.75');
+  }
+
+  const configPath = './bybitDynamic.json';
+  let config = {};
+  if (fs.existsSync(configPath)) {
+    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  }
+  config.TRAILING_STOP = value;
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+  ctx.reply(`✅ Trailing Stop Bybit aggiornato a ${value}%`);
 });
 
 
@@ -452,6 +487,10 @@ bot.launch().then(() => {
      bot.telegram.sendMessage(process.env.CHAT_ID, msg, { parse_mode: 'Markdown' });
    }
  }
+
+}).catch(err => {
+ console.error('❌ Errore Telegram bot:', err.message);
+});
 
 }).catch(err => {
  console.error('❌ Errore Telegram bot:', err.message);
