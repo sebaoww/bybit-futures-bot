@@ -7,15 +7,15 @@ function analyzeSignalV9(candles5m, _unused, lastTradeDirection = null, lastTrad
   const high = candles5m.map(c => c.high);
   const low = candles5m.map(c => c.low);
 
-  const ema9 = calculateEMA(close, 9).at(-1) || 0;
-  const ema25 = calculateEMA(close, 25).at(-1) || 0;
-  const rsi = calculateRSI(close, 14).at(-1) || 0;
-  const adx = calculateADX(high, low, close, 14).at(-1) || 0;
+  const ema9 = Number(calculateEMA(close, 9).at(-1)) || 0;
+  const ema25 = Number(calculateEMA(close, 25).at(-1)) || 0;
+  const rsi = Number(calculateRSI(close, 14).at(-1)) || 0;
+  const adx = Number(calculateADX(high, low, close, 14).at(-1)) || 0;
 
   const bb = calculateBollingerBands(close, 20, 2);
-  const bbUpper = bb.upper?.at(-1) || 0;
-  const bbLower = bb.lower?.at(-1) || 0;
-  const price = close.at(-1) || 0;
+  const bbUpper = Number(bb.upper?.at(-1)) || 0;
+  const bbLower = Number(bb.lower?.at(-1)) || 0;
+  const price = Number(close.at(-1)) || 0;
 
   const bbLong = price < bbUpper;
   const bbShort = price > bbLower;
@@ -27,7 +27,7 @@ function analyzeSignalV9(candles5m, _unused, lastTradeDirection = null, lastTrad
 
   logger.info(`🔍 EMA9: ${ema9.toFixed(6)}, EMA25: ${ema25.toFixed(6)}, RSI: ${rsi.toFixed(2)}, ADX: ${adx.toFixed(2)}`);
   logger.info(`📊 BB Long: ${bbLong}, BB Short: ${bbShort}, Trade OK: ${canTrade}`);
-  
+
   let signal = null;
   if (longCond && canTrade) signal = 'LONG';
   else if (shortCond && canTrade) signal = 'SHORT';
