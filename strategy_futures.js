@@ -1,4 +1,4 @@
-// strategy_futures.js - Strategia V9.1 semplificata
+// strategy_futures.js - Strategia V9.2 sicura con fallback
 const logger = require('./logger');
 const { calculateEMA, calculateRSI, calculateADX, calculateBollingerBands } = require('./indicators');
 
@@ -7,15 +7,20 @@ function analyzeSignalV9(candles5m, _unused, lastTradeDirection = null, lastTrad
   const high = candles5m.map(c => c.high);
   const low = candles5m.map(c => c.low);
 
-  const ema9 = calculateEMA(close, 9).at(-1);
-  const ema25 = calculateEMA(close, 25).at(-1);
-  const rsi = calculateRSI(close, 14).at(-1);
-  const adx = calculateADX(high, low, close, 14).at(-1);
+  const ema9 = calculateEMA(close, 9).at(-1) || 0;
+  const ema25 = calculateEMA(close, 25).at(-1) || 0;
+  const rsi = calculateRSI(close, 14).at(-1) || 0;
+  const adx = calculateADX(high, low, close, 14).at(-1) || 0;
+
   const bb = calculateBollingerBands(close, 20, 2);
-  const price = close.at(-1);
-  const bbLong = price < bb.upper.at(-1);
-  const bbShort = price > bb.lower.at(-1);
-  const canTrade = !lastTradeTime || ((currentTime - lastTradeTime) >= 3 * 5 * 60 * 1000); // 3 candele da 5m
+  const bbUpper = bb.upper?.at(-1) || 0;
+  const bbLower = bb.lower?.at(-1) || 0;
+  const price = close.at(-1) || 0;
+
+  const bbLong = price < bbUpper;
+  const bbShort = price > bbLower;
+
+  const canTrade = !lastTradeTime || ((currentTime - lastTradeTime) >= 3 * 5 * 60 * 1000); // 15 min
 
   const longCond = ema9 > ema25 && rsi > 53 && adx > 18 && bbLong;
   const shortCond = ema9 < ema25 && rsi < 47 && adx > 18 && bbShort;
