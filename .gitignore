@@ -1,0 +1,9 @@
+.env
+*.log
+bybitStats.json
+bybitTrades.log
+bybitEntryPrices.json
+fetchBybitPairs.json
+stats.json
+trades.log
+node_modules/
