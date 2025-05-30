@@ -5,6 +5,9 @@ const { EMA, RSI, ADX } = require('technicalindicators');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
 const { getConfig, loadDynamic } = require('./conf');
 require('dotenv').config();
+if (!globalThis.crypto) {
+  globalThis.crypto = require('crypto');
+}
 const logger = require('./logger'); // ✅ AGGIUNGILA QUI
 const { analyzeSignalV9 } = require('./strategy_futures');
 const LIVE_MODE = process.env.LIVE_MODE === 'true';
