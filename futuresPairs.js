@@ -1,0 +1,22 @@
+module.exports = [
+  "BTCUSDT",
+  "ETHUSDT",
+  "SOLUSDT",
+  "1000PEPEUSDT",
+  "XRPUSDT",
+  "SUIUSDT",
+  "DOGEUSDT",
+  "TRBUSDT",
+  "HYPEUSDT",
+  "WIFUSDT",
+  "FARTCOINUSDT",
+  "VIRTUALUSDT",
+  "MOODENGUSDT",
+  "ENAUSDT",
+  "ADAUSDT",
+  "TRUMPUSDT",
+  "WCTUSDT",
+  "AVAXUSDT",
+  "WLDUSDT",
+  "AAVEUSDT"
+];
