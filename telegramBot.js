@@ -219,7 +219,6 @@ bot.command('ftrailing', (ctx) => {
   ctx.reply(`✅ Trailing Stop Bybit aggiornato a ${value}%`);
 });
 
-
 // /on
 bot.command('on', (ctx) => {
   if (ctx.chat.id.toString() !== process.env.CHAT_ID) return;
@@ -487,10 +486,6 @@ bot.launch().then(() => {
      bot.telegram.sendMessage(process.env.CHAT_ID, msg, { parse_mode: 'Markdown' });
    }
  }
-
-}).catch(err => {
- console.error('❌ Errore Telegram bot:', err.message);
-});
 
 }).catch(err => {
  console.error('❌ Errore Telegram bot:', err.message);
