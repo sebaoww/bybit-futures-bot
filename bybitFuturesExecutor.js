@@ -218,8 +218,10 @@ async function closeOrder(pair, side, qty) {
     const trailingPercent = TRAILING_STOP_PERCENT;
   
     if (!entry && candles5m && candles30m) {
-      const signal = await analyzeSignalV9(pair, candles5m, candles30m, config);    
-      if (!signal) return;
+      const signalData = analyzeSignalV9(candles5m, candles30m, null, 0, Date.now());
+if (!signalData.signal) return;
+const signal = signalData.signal;
+
   
       const side = signal === 'LONG' ? 'Buy' : 'Sell';
   
@@ -313,9 +315,26 @@ async function getPrices() {
   
     const tp = TP_PERCENT;
     const sl = SL_PERCENT;
-    const trailing = TRAILING_STOP_PERCENT;
+  
+    // ✅ Legge dinamico dal file JSON, fallback su .env
+    const dynamic = fs.existsSync('./bybitDynamic.json')
+    ? JSON.parse(fs.readFileSync('./bybitDynamic.json', 'utf8'))
+    : {};
+  const trailing = Number.isFinite(dynamic.TRAILING_STOP)
+    ? dynamic.TRAILING_STOP
+    : parseFloat(process.env.BYBIT_TRAILING_STOP || '2');
+  
+  
   
     console.log('📈 Avvio Bybit Futures Bot...');
+await sendTelegram(
+  `⚙️ Strategia attiva Bybit Futures\n\n` +
+  `🔁 Strategia: v7 (Bollinger Bands)\n` +
+  `📈 Take Profit: ${tp}%\n` +
+  `📉 Stop Loss: -${sl}%\n` +
+  `🔂 Trailing Stop: ${trailing}%\n` +
+  `📊 BollingerBand: ATTIVO ✅`
+);
     const prices = await getPrices();
     const entries = loadEntries();
   
