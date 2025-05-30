@@ -304,6 +304,25 @@ bot.command('positions', (ctx) => {
 
   ctx.replyWithMarkdown(msg);
 });
+bot.command('fhelp', (ctx) => {
+  const msg = `
+🤖 *Comandi disponibili (Bybit Futures)*
+
+/fstatus  - Mostra stato attuale (attivo/disattivo)
+/fon      - Attiva il bot
+/foff     - Disattiva il bot
+/fverbose - Attiva/disattiva modalità analisi dettagliata
+/fsettp   - Imposta nuovo valore TP (es: /fsettp 4)
+/fsetsl   - Imposta nuovo valore SL (es: /fsetsl 1.2)
+/fpnl     - Mostra profitti e perdite
+/freset   - Resetta storico PnL
+/last     - Ultimo trade eseguito
+/frestart - Riavvia il bot manualmente
+
+💡 Usa solo i comandi necessari!
+  `;
+  ctx.replyWithMarkdown(msg);
+});
 
 
 // /last
