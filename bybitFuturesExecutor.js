@@ -1,5 +1,4 @@
 const fs = require('fs');
-const path = require('path');
 const { WebsocketClient, RestClientV5 } = require('bybit-api');
 const { EMA, RSI, ADX } = require('technicalindicators');
 const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
@@ -35,6 +34,22 @@ const client = new RestClientV5({
   key: process.env.BYBIT_API_KEY,
   secret: process.env.BYBIT_API_SECRET
 });
+// ✅ Funzione per ottenere i prezzi delle coppie
+const fetchPrices = async (symbols) => {
+  const response = await fetch('https://api.bybit.com/v5/market/tickers?category=linear');
+  const data = await response.json();
+  const tickers = data.result.list;
+
+  const prices = {};
+  for (const symbol of symbols) {
+    const ticker = tickers.find(t => t.symbol === symbol);
+    if (ticker) {
+      prices[symbol] = parseFloat(ticker.lastPrice);
+    }
+  }
+
+  return prices;
+};
 
 // ✅ Carica lo stato del bot
 let botState = { active: true, verbose: false };
@@ -83,19 +98,20 @@ async function sendTelegram(msg) {
   });
 }
 
-async function getCandles(symbol) {
+async function getCandles(symbol, interval = '30') {
   try {
-    const res = await client.getKline({ category: 'linear', symbol, interval: '5', limit: 100 });
+    const res = await client.getKline({ category: 'linear', symbol, interval, limit: 100 });
     return res.result.list.reverse().map(c => ({
       close: parseFloat(c[4]),
       high: parseFloat(c[2]),
       low: parseFloat(c[3]),
     }));
   } catch (e) {
-    console.warn(`⚠️ Errore OHLC ${symbol}: ${e.message}`);
+    console.warn(`⚠️ Errore OHLC ${symbol} [${interval}m]: ${e.message}`);
     return [];
   }
 }
+
 
 
 async function getQtyPrecision(pair) {
@@ -112,13 +128,14 @@ async function getQtyPrecision(pair) {
   
 
   // FUNZIONE: invia un ordine Market su Bybit Futures
-async function placeOrder(pair, side, tradeAmountUSD, price) {
+  async function placeOrder(pair, side, tradeAmountUSD, price) {
     try {
       const { stepSize } = await getQtyPrecision(pair);
       const rawQty = (TRADE_AMOUNT * LEVERAGE / price);
       const factor = Math.pow(10, Math.floor(-Math.log10(stepSize)));
       const qty = Math.floor(rawQty * factor) / factor;
       const rounded = parseFloat(qty.toFixed(8)); // Per sicurezza
+      console.log(`🔎 Quantità calcolata per ${pair}: raw=${rawQty}, final=${rounded}`);
   
       console.log(`📤 Tentativo ordine ${side} ${pair} → qty: ${rounded}`);
       if (!LIVE_MODE) {
@@ -126,7 +143,7 @@ async function placeOrder(pair, side, tradeAmountUSD, price) {
         await sendTelegram(`🟡 [SIMULAZIONE] ${side} ${pair} — qty: ${rounded} @ ${price}`);
         return { simulated: true };
       }
-      
+  
       if (rounded <= 0) {
         console.warn(`⚠️ Quantità troppo bassa per ${pair}, ordine non inviato.`);
         await sendTelegram(`⚠️ Impossibile inviare ordine ${pair}: quantità troppo bassa (${rounded})`);
@@ -145,17 +162,32 @@ async function placeOrder(pair, side, tradeAmountUSD, price) {
   
       console.log('📦 Parametri ordine:', JSON.stringify(orderParams, null, 2));
   
-      const res = await client.submitOrder(orderParams); // ✅ ora usa i parametri corretti
+      const res = await client.submitOrder(orderParams);
   
       if (res.retCode === 0) {
         console.log(`✅ ORDINE ${side} ${pair} inviato con successo. ID: ${res.result.orderId}`);
         await sendTelegram(`✅ ORDINE INVIATO: ${side} ${pair}\nQty: ${rounded}\nPrezzo: ${price}`);
+  
+        // ✅ Salvataggio entry solo se ordine confermato
+        const entries = loadEntries();
+        const trailingPeak = side === 'Buy' ? price : price; // inizializza da prezzo attuale
+        entries[pair] = {
+          entryPrice: price,
+          quantity: rounded,
+          type: side === 'Buy' ? 'LONG' : 'SHORT',
+          timestamp: Date.now(),
+          trailingPeak
+        };
+        saveEntries(entries);
+        return res;
       } else {
         console.error(`❌ Errore ordine ${pair}: ${res.retMsg}`);
         await sendTelegram(`❌ ERRORE ordine ${side} ${pair}: ${res.retMsg}`);
       }
   
+      console.log('📬 Risultato ordine:', JSON.stringify(res, null, 2));
       return res;
+  
     } catch (err) {
       console.error(`❌ Errore critico su ${side} ${pair}:`, err.message);
       await sendTelegram(`❌ ERRORE CRITICO ${side} ${pair}: ${err.message}`);
@@ -216,47 +248,62 @@ async function closeOrder(pair, side, qty) {
     }
   }
   
-  async function executeFutures(pair, prices, entries, TP_PERCENT, SL_PERCENT, TRAILING_STOP_PERCENT, config, candles5m, candles30m) {
+  async function executeFutures(pair, prices, entries, TP_PERCENT, SL_PERCENT, TRAILING_STOP_PERCENT, config, candles30m) {
     const price = parseFloat(prices[pair]);
     if (!price || !botState.active) return;
   
     const entry = entries[pair];
     const trailingPercent = TRAILING_STOP_PERCENT;
-  
-    if (!entry && candles5m && candles30m) {
-      const signalData = analyzeSignalV9(candles5m, candles30m, null, 0, Date.now());
-if (!signalData.signal) return;
-const signal = signalData.signal;
-
-  
+    if (!entry && candles30m) {
+      const signalData = analyzeSignalV9(candles30m, null, null, 0, Date.now());
+      if (!signalData.signal) return;
+    
+      const signal = signalData.signal;
       const side = signal === 'LONG' ? 'Buy' : 'Sell';
-  
-      await placeOrder(pair, side, TRADE_AMOUNT, price);
-      logTrade(`🟢 ${signal} ${pair} @ ${price}`);
-      await sendTelegram(`📥 ${signal} ${pair} @ ${price} x${LEVERAGE}`);
-      updateStats(signal);
-  
-      const { stepSize } = await getQtyPrecision(pair);
-      const rawQty = (TRADE_AMOUNT * LEVERAGE / price);
-      const factor = Math.pow(10, Math.floor(-Math.log10(stepSize)));
-      const qty = Math.floor(rawQty * factor) / factor;
-      const roundedQty = parseFloat(qty.toFixed(8));
-  
-      entries[pair] = {
-        entryPrice: price,
-        quantity: roundedQty,
-        type: signal,
-        trailingPeak: price,
-        timestamp: new Date().toISOString()
-      };
-      saveEntries(entries);
-    } else {
-      let pnl;
+    
+  const orderResult = await placeOrder(pair, side, TRADE_AMOUNT, price);
+if (!orderResult || orderResult.retCode !== 0) {
+  console.warn(`⚠️ Ordine ${side} fallito per ${pair}.`);
+  console.log('📬 Risposta Bybit:', JSON.stringify(orderResult, null, 2));
+  await sendTelegram(`❌ Ordine ${side} fallito per ${pair}: ${orderResult?.retMsg || 'Errore sconosciuto'}`);
+  return;
+}
+
+logTrade(`🟢 ${signal} ${pair} @ ${price}`);
+await sendTelegram(`📥 ${signal} ${pair} @ ${price} x${LEVERAGE}`);
+updateStats(signal);
+
+
+// ✅ Solo qui calcoli qty e salvi l'entry
+const { stepSize } = await getQtyPrecision(pair);
+const rawQty = (TRADE_AMOUNT * LEVERAGE / price);
+const factor = Math.pow(10, Math.floor(-Math.log10(stepSize)));
+const qty = Math.floor(rawQty * factor) / factor;
+const roundedQty = parseFloat(qty.toFixed(8));
+
+entries[pair] = {
+  entryPrice: price,
+  quantity: roundedQty,
+  type: side === 'Buy' ? 'LONG' : 'SHORT',
+  trailingPeak: price,
+  timestamp: Date.now()
+};
+saveEntries(entries);
+
+logTrade(`🟢 ${signal} ${pair} @ ${price}`);
+await sendTelegram(`📥 ${signal} ${pair} @ ${price} x${LEVERAGE}`);
+updateStats(signal);
+
+    
+    } else if (entry && entry.type) {
+
+     
+    
       if (entry.type === 'LONG') {
-        entry.trailingPeak = Math.max(entry.trailingPeak, price);
+        entry.trailingPeak = Math.max(entry.trailingPeak || price, price);
         const trailStop = entry.trailingPeak * (1 - trailingPercent / 100);
         pnl = ((price - entry.entryPrice) / entry.entryPrice) * 100 * LEVERAGE;
-  
+    
         if (price <= trailStop || pnl >= TP_PERCENT || pnl <= -SL_PERCENT) {
           await closeOrder(pair, 'Sell', entry.quantity);
           logTrade(`🔴 CLOSE ${pair} LONG @ ${price} PNL ${pnl.toFixed(2)}%`);
@@ -268,16 +315,17 @@ const signal = signalData.signal;
             `💰 PNL: ${pnl.toFixed(2)}%`,
             { parse_mode: 'Markdown' }
           );
-          
+    
           updateStats('CLOSE', pnl);
           delete entries[pair];
           saveEntries(entries);
         }
+        let pnl;
       } else if (entry.type === 'SHORT') {
-        entry.trailingPeak = Math.min(entry.trailingPeak, price);
+        entry.trailingPeak = Math.min(entry.trailingPeak || price, price);
         const trailStop = entry.trailingPeak * (1 + trailingPercent / 100);
         pnl = ((entry.entryPrice - price) / entry.entryPrice) * 100 * LEVERAGE;
-  
+    
         if (price >= trailStop || pnl >= TP_PERCENT || pnl <= -SL_PERCENT) {
           await closeOrder(pair, 'Buy', entry.quantity);
           logTrade(`🔴 CLOSE ${pair} SHORT @ ${price} PNL ${pnl.toFixed(2)}%`);
@@ -289,14 +337,21 @@ const signal = signalData.signal;
             `💰 PNL: ${pnl.toFixed(2)}%`,
             { parse_mode: 'Markdown' }
           );
-          
+    
           updateStats('CLOSE', pnl);
           delete entries[pair];
           saveEntries(entries);
         }
+    
+      } else {
+        logger.warn(`⚠️ Entry per ${pair} con tipo sconosciuto: ${entry.type}`);
       }
+    
+    
+    } else {
+      logger.warn(`⚠️ Entry per ${pair} non definita. Skippato.`);
     }
-  }
+    
   
 async function getPrices() {
     try {
@@ -315,7 +370,12 @@ async function getPrices() {
       return {};
     }
   }  
-
+  const ENABLE_ANALYSIS = process.env.ENABLE_ANALYSIS === 'true';
+  if (!ENABLE_ANALYSIS) {
+    console.log('🚫 Analisi disattivata da .env. Terminazione...');
+    process.exit(0);
+  }
+  
   async function run() {
     const config = getConfig('bybit');
   
@@ -341,7 +401,7 @@ async function getPrices() {
     console.log('📈 Avvio Bybit Futures Bot...');
 await sendTelegram(
   `⚙️ Strategia attiva Bybit Futures\n\n` +
-  `🔁 Strategia: v7 (Bollinger Bands)\n` +
+  `🔁 Strategia: v9 (Grumpyshiba)\n` +
   `📈 Take Profit: ${tp}%\n` +
   `📉 Stop Loss: -${sl}%\n` +
   `🔂 Trailing Stop: ${trailing}%\n` +
@@ -365,20 +425,19 @@ await sendTelegram(
     for (const pair of pairs) {
       logger.section(`📈 BYBIT FUTURES ─ [${pair}]`);
       console.log(`🔍 Analizzando ${pair}...`);
-  
       const price = parseFloat(prices[pair]);
+      const entry = entries[pair]; // spostato subito dopo il prezzo
+      
       if (!price || !botState.active) {
         console.log(`⚠️ Skippato ${pair} — prezzo nullo o bot disattivo`);
         continue;
       }
-  
-      const entry = entries[pair];
-      const candles5m = await client.getKline({
-        category: 'linear',
-        symbol: pair,
-        interval: '5',
-        limit: 100,
-      });
+      
+      if (entry && !entry.type) {
+        logger.warn(`⚠️ Warning: ${pair} ha una entry ma manca 'type':`, JSON.stringify(entry));
+      }
+      
+      
       const candles30m = await client.getKline({
         category: 'linear',
         symbol: pair,
@@ -392,26 +451,27 @@ await sendTelegram(
           high: parseFloat(c[2]),
           low: parseFloat(c[3]),
         }));
-  
-      const formatted5m = formatCandles(candles5m);
+        
       const formatted30m = formatCandles(candles30m);
   
       if (!entry) {
         const signalData = analyzeSignalV9(
-          formatted5m,
           formatted30m,
+          null,
           null,
           0,
           Date.now()
         );
+        
         if (VERBOSE_MODE) {
           const { signal, indicators } = signalData;
           const signalText = signal ? `📢 *Segnale ${signal}*` : '❌ Nessun segnale valido.';
-          const verboseMsg = `📊 *${pair}*\n` +
-            `EMA: ${indicators.ema9_5m?.toFixed(4)} vs ${indicators.ema25_5m?.toFixed(4)}\n` +
-            `RSI: ${indicators.rsi_5m?.toFixed(2)}\n` +
-            `ADX: ${indicators.adx_5m?.toFixed(2)}\n` +
-            `${signalText}`;
+          const verboseMsg = `📊 *${pair} [30m]*\n` +
+                          `EMA: ${indicators.ema9?.toFixed(4)} vs ${indicators.ema25?.toFixed(4)}\n` +
+                           `RSI: ${indicators.rsi?.toFixed(2)}\n` +
+                           `ADX: ${indicators.adx?.toFixed(2)}\n` +
+                           `${signalText}`;
+
           await sendTelegram(verboseMsg);
         }
         
@@ -425,14 +485,17 @@ await sendTelegram(
             sl,
             trailing,
             config,
-            formatted5m,
-            formatted30m
+            null,            // 5m lo metti a null
+            formatted30m     // solo 30m attivo
           );
+          
         } else {
           console.log(`⚪ Nessun segnale valido per ${pair}`);
         }
       } else {
         console.log(`📊 ${pair} ha posizione aperta (${entry.type}) — controllo PNL...`);
+        logger.info(`✅ Analisi completata. In attesa del prossimo ciclo...`);
+
         await executeFutures(
           pair,
           prices,
@@ -441,7 +504,7 @@ await sendTelegram(
           sl,
           trailing,
           config,
-          formatted5m,
+          null,
           formatted30m
         );
       }
@@ -451,3 +514,127 @@ await sendTelegram(
   }
   setInterval(run, 5 * 60 * 1000);
   run();
+}
+async function analyzeAndTrade() {
+  const { trading } = getConfig('bybit');
+  const pairs = require('./futuresPairs');
+  const now = Date.now();
+
+  for (const pair of pairs) {
+    try {
+      logger.info(`📊 Analisi della coppia: ${pair}...`);
+
+      const klines5m = await fetchOHLC(pair, '5');
+      const klines30m = await fetchOHLC(pair, '30');
+
+      if (!klines5m || klines5m.length < 50 || !klines30m || klines30m.length < 50) {
+        logger.warn(`⚠️ Dati insufficienti per ${pair}`);
+        continue;
+      }
+
+      const signal = analyzeSignalV9(klines30m, klines5m);
+      if (signal && ['LONG', 'SHORT'].includes(signal)) {
+        logger.info(`📈 Segnale ${signal} per ${pair}`);
+        await handleSignal(pair, signal, klines30m.at(-1).close);
+      } else {
+        logger.info(`⛔ Nessun segnale valido per ${pair}`);
+      }
+
+    } catch (err) {
+      logger.error(`❌ Errore durante l’analisi di ${pair}: ${err.message}`);
+    }
+  }
+}
+// 📈 Funzione per ottenere dati OHLC da Bybit
+const fetchOHLC = async (symbols, interval = '30') => {
+  const results = {};
+
+  for (const symbol of symbols) {
+    try {
+      const url = `https://api.bybit.com/v5/market/kline?category=linear&symbol=${symbol}&interval=${interval}&limit=100`;
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (data.retCode === 0 && data.result?.list?.length > 0) {
+        const candles = data.result.list.map(c => ({
+          time: +c[0],
+          open: +c[1],
+          high: +c[2],
+          low: +c[3],
+          close: +c[4],
+          volume: +c[5]
+        }));
+        results[symbol] = candles;
+      } else {
+        console.warn(`⚠️ Nessun dato OHLC per ${symbol}`);
+      }
+    } catch (err) {
+      console.error(`❌ Errore OHLC ${symbol}: ${err.message}`);
+    }
+  }
+
+  return results;
+};
+
+async function run() {
+  const timestamp = new Date().toISOString();
+  console.log(`🚀 Analisi avviata: ${timestamp}`);
+
+  const config = getConfig('bybit');
+  const { trading } = config;
+  const tp = trading.takeProfitPercentage;
+  const sl = trading.stopLossPercentage;
+  const trailing = trading.trailingStopPercent;
+
+  const entries = loadEntries();
+  const prices = await fetchPrices(pairs);
+
+  const formatted30m = await fetchOHLC(pairs, '30');
+
+  for (const pair of pairs) {
+    const entry = entries[pair];
+    const price = prices[pair];
+
+    if (!price || !formatted30m[pair]) {
+      console.warn(`⛔ Dati mancanti per ${pair}, skippato.`);
+      continue;
+    }
+
+    if (!entry) {
+      const signal = analyzeSignalV9(formatted30m[pair]);
+      if (signal && signal.side) {
+        await openPosition(pair, signal.side, price, config, entries);
+      } else {
+        console.log(`🟡 Nessun segnale valido per ${pair}.`);
+      }
+    } else {
+      let pnl;
+      if (entry.type === 'LONG') {
+        entry.trailingPeak = Math.max(entry.trailingPeak, price);
+        const trailStop = entry.trailingPeak * (1 - trailing / 100);
+        pnl = ((price - entry.entryPrice) / entry.entryPrice) * 100 * LEVERAGE;
+
+        if (price <= trailStop || pnl >= tp || pnl <= -sl) {
+          await closeOrder(pair, 'Sell', entry.quantity);
+          delete entries[pair];
+          saveEntries(entries);
+        }
+      } else if (entry.type === 'SHORT') {
+        entry.trailingPeak = Math.min(entry.trailingPeak, price);
+        const trailStop = entry.trailingPeak * (1 + trailing / 100);
+        pnl = ((entry.entryPrice - price) / entry.entryPrice) * 100 * LEVERAGE;
+
+        if (price >= trailStop || pnl >= tp || pnl <= -sl) {
+          await closeOrder(pair, 'Buy', entry.quantity);
+          delete entries[pair];
+          saveEntries(entries);
+        }
+      }
+    }
+  }
+
+  console.log('⏱️ Attesa 5 minuti per la prossima analisi...\n');
+}
+
+setInterval(run, 5 * 60 * 1000);
+run();

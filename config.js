@@ -1,6 +1,16 @@
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
+const { Keypair } = require('@solana/web3.js');
+
+const keypairPath = process.env.WALLET_KEYPAIR_PATH || './wallet-keypair.json';
+if (!fs.existsSync(keypairPath)) {
+  throw new Error(`❌ Keypair file non trovato: ${keypairPath}`);
+}
+
+const keypairRaw = fs.readFileSync(keypairPath, 'utf8');
+const secretKey = Uint8Array.from(JSON.parse(keypairRaw));
+const walletKeypair = Keypair.fromSecretKey(secretKey);
 
 const dynamicPath = path.join(__dirname, '.dynamic_config.json');
 
@@ -16,24 +26,26 @@ function saveDynamic(data) {
   fs.writeFileSync(dynamicPath, JSON.stringify(data, null, 2));
 }
 
-// 🔁 Multi-exchange support: 'binance' (default) or 'bybit'
-function getConfig(exchange = 'binance') {
+function getConfig() {
   const dynamic = loadDynamic();
 
-  const config = {
+  return {
     telegram: {
       botToken: process.env.BOT_TOKEN,
       chatId: process.env.CHAT_ID,
     },
+    solana: {
+      rpcUrl: process.env.RPC_URL,
+      walletKeypairPath: keypairPath,
+      walletKeypair: walletKeypair,
+    },
     trading: {
-      tradeAmountUSD: exchange === 'bybit'
-        ? parseFloat(process.env.BYBIT_TRADE_AMOUNT) || 5
-        : parseFloat(process.env.BINANCE_TRADE_AMOUNT) || 10,
+      tradeAmountUSD: parseFloat(process.env.TRADE_AMOUNT_USD) || 5,
       volumeThresholdSOL: parseFloat(process.env.VOLUME_THRESHOLD) || 1.5,
-      takeProfitPercentage: dynamic.TAKE_PROFIT !== undefined ? dynamic.TAKE_PROFIT : (parseFloat(process.env.TAKE_PROFIT) || 2),
-      stopLossPercentage: dynamic.STOP_LOSS !== undefined ? dynamic.STOP_LOSS : (parseFloat(process.env.STOP_LOSS) || -1.5),
-      trailingStopPercent: dynamic.TRAILING_STOP !== undefined ? dynamic.TRAILING_STOP : (parseFloat(process.env.TRAILING_STOP) || 0.05),
+      takeProfitPercentage: dynamic.TAKE_PROFIT ?? parseFloat(process.env.TAKE_PROFIT) || 2,
+      stopLossPercentage: dynamic.STOP_LOSS ?? parseFloat(process.env.STOP_LOSS) || -1.5,
       slippage: parseFloat(process.env.SLIPPAGE) || 0.02,
+      trailingStopPercent: parseFloat(process.env.TRAILING_STOP) || 0.05,
       liveMode: process.env.LIVE_MODE === 'true'
     },
     strategy: {
@@ -44,19 +56,8 @@ function getConfig(exchange = 'binance') {
       RSI_PERIOD: parseInt(process.env.RSI_PERIOD) || 14,
       ATR_PERIOD: parseInt(process.env.ATR_PERIOD) || 14,
       SUPER_TREND_MULTIPLIER: parseFloat(process.env.SUPER_TREND_MULTIPLIER) || 2,
-    },
-    keys: {}
+    }
   };
-
-  // Se il modulo è "bybit", includi le sue API
-  if (exchange === 'bybit') {
-    config.keys = {
-      apiKey: process.env.BYBIT_API_KEY,
-      apiSecret: process.env.BYBIT_API_SECRET
-    };
-  }
-
-  return config;
 }
 
 module.exports = {

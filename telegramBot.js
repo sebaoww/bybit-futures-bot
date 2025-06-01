@@ -40,6 +40,25 @@ function getLastTrade(logFile) {
     return '❌ Errore lettura log.';
   }
 }
+function sendTelegramTradeStatus(pair, result) {
+  const ema9 = result?.indicators?.ema9?.toFixed(4) || 'n/a';
+  const ema25 = result?.indicators?.ema25?.toFixed(4) || 'n/a';
+  const rsi = result?.indicators?.rsi?.toFixed(2) || 'n/a';
+  const adx = result?.indicators?.adx?.toFixed(2) || 'n/a';
+
+  let message = `> Scalping futures:\n📊 *${pair}*\n`;
+  message += `EMA: ${ema9} vs ${ema25}\nRSI: ${rsi}\nADX: ${adx}\n`;
+
+  if (result.signal) {
+    message += `✅ *Segnale attivo*: ${result.signal}`;
+  } else if (result.reentry) {
+    message += `🔁 *Reentry*: ${result.reentry}`;
+  } else {
+    message += `❌ Nessun segnale valido.`;
+  }
+
+  bot.telegram.sendMessage(TELEGRAM_CHAT_ID, message, { parse_mode: 'Markdown' });
+}
 
 
 // /start
