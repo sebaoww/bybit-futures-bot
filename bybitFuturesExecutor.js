@@ -302,53 +302,93 @@ async function executeFutures(pair, prices, entries, TP_PERCENT, SL_PERCENT, TRA
       timestamp: Date.now()
     };
     saveEntries(entries);
+
     // ✅ Imposta trailing stop direttamente su Bybit
-try {
-  const trailingValue = (price * (TRAILING_STOP_PERCENT / 100)).toFixed(4);
-  await client.setTradingStop({
-    category: 'linear',
-    symbol: pair,
-    trailingStop: trailingValue
-  });
-  console.log(`🔃 Trailing Stop impostato per ${pair} → ${trailingValue}`);
-  await sendTelegram(`🔃 Trailing Stop impostato per ${pair}: ${trailingValue}`);
-} catch (e) {
-  console.warn(`⚠️ Errore impostazione trailing stop per ${pair}: ${e.message}`);
-  await sendTelegram(`⚠️ Errore trailing stop ${pair}: ${e.message}`);
-}
+    try {
+      const trailingValue = (price * (TRAILING_STOP_PERCENT / 100)).toFixed(4);
+      await client.setTradingStop({
+        category: 'linear',
+        symbol: pair,
+        trailingStop: trailingValue
+      });
+      console.log(`🔃 Trailing Stop impostato per ${pair} → ${trailingValue}`);
+      await sendTelegram(`🔃 Trailing Stop impostato per ${pair}: ${trailingValue}`);
+    } catch (e) {
+      console.warn(`⚠️ Errore impostazione trailing stop per ${pair}: ${e.message}`);
+      await sendTelegram(`⚠️ Errore trailing stop ${pair}: ${e.message}`);
+    }
+
     logTrade(`🟢 ${signal} ${pair} @ ${price}`);
     await sendTelegram(`📥 ${signal} ${pair} @ ${price} x${LEVERAGE}`);
     updateStats(signal);
     return;
   }
 
+  // ✅ GESTIONE POSIZIONI APERTE con TP dinamici
   if (entry && entry.type) {
     let pnl;
+
+    const tpLevels = [3, 6, 9, 12]; // Livelli % PNL
+    const tpPercents = [0.25, 0.25, 0.25, 0.25]; // Quantità da chiudere per ogni TP
+
     if (entry.type === 'LONG') {
       entry.trailingPeak = Math.max(entry.trailingPeak || price, price);
       const trailStop = entry.trailingPeak * (1 - trailingPercent / 100);
       pnl = ((price - entry.entryPrice) / entry.entryPrice) * 100 * LEVERAGE;
-      if (price <= trailStop || pnl >= TP_PERCENT || pnl <= -SL_PERCENT) {
+
+      for (let i = 0; i < tpLevels.length; i++) {
+        if (!entry[`tp${i + 1}`] && pnl >= tpLevels[i]) {
+          const partialQty = entry.quantity * tpPercents[i];
+          await closeOrder(pair, 'Sell', partialQty);
+          entry.quantity -= partialQty;
+          entry[`tp${i + 1}`] = true;
+          logTrade(`🎯 TP${i + 1} LONG ${pair} chiuso @ ${price} (${partialQty})`);
+          await sendTelegram(`🎯 TP${i + 1} LONG raggiunto\n${pair} @ ${price}\nPNL: ${pnl.toFixed(2)}% | Qty chiusa: ${partialQty}`);
+          saveEntries(entries);
+        }
+      }
+
+      if (price <= trailStop || pnl <= -SL_PERCENT || entry.quantity <= 0) {
         await closeOrder(pair, 'Sell', entry.quantity);
         updateStats('CLOSE', pnl);
         delete entries[pair];
         saveEntries(entries);
+        logTrade(`🛑 CLOSE LONG ${pair} finale @ ${price} | PNL: ${pnl.toFixed(2)}%`);
+        await sendTelegram(`🛑 Chiusura finale LONG\n${pair} @ ${price}\nPNL: ${pnl.toFixed(2)}%`);
       }
+
     } else if (entry.type === 'SHORT') {
       entry.trailingPeak = Math.min(entry.trailingPeak || price, price);
       const trailStop = entry.trailingPeak * (1 + trailingPercent / 100);
       pnl = ((entry.entryPrice - price) / entry.entryPrice) * 100 * LEVERAGE;
-      if (price >= trailStop || pnl >= TP_PERCENT || pnl <= -SL_PERCENT) {
+
+      for (let i = 0; i < tpLevels.length; i++) {
+        if (!entry[`tp${i + 1}`] && pnl >= tpLevels[i]) {
+          const partialQty = entry.quantity * tpPercents[i];
+          await closeOrder(pair, 'Buy', partialQty);
+          entry.quantity -= partialQty;
+          entry[`tp${i + 1}`] = true;
+          logTrade(`🎯 TP${i + 1} SHORT ${pair} chiuso @ ${price} (${partialQty})`);
+          await sendTelegram(`🎯 TP${i + 1} SHORT raggiunto\n${pair} @ ${price}\nPNL: ${pnl.toFixed(2)}% | Qty chiusa: ${partialQty}`);
+          saveEntries(entries);
+        }
+      }
+
+      if (price >= trailStop || pnl <= -SL_PERCENT || entry.quantity <= 0) {
         await closeOrder(pair, 'Buy', entry.quantity);
         updateStats('CLOSE', pnl);
         delete entries[pair];
         saveEntries(entries);
+        logTrade(`🛑 CLOSE SHORT ${pair} finale @ ${price} | PNL: ${pnl.toFixed(2)}%`);
+        await sendTelegram(`🛑 Chiusura finale SHORT\n${pair} @ ${price}\nPNL: ${pnl.toFixed(2)}%`);
       }
+
     } else {
       console.warn(`⚠️ Tipo entry sconosciuto per ${pair}: ${entry.type}`);
     }
   }
 }
+
 async function getPrices() {
   try {
     const res = await client.getTickers({ category: 'linear' });
