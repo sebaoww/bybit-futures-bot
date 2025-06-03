@@ -176,6 +176,16 @@ async function getQtyPrecision(pair) {
       const res = await client.submitOrder(orderParams);
   
       console.log('📬 Risultato completo Bybit:', JSON.stringify(res, null, 2));
+       
+       // 🧪 Controllo specifico TP/SL
+       const tp = res?.result?.takeProfit;
+       const sl = res?.result?.stopLoss;
+
+       if (tp && sl) {
+       console.log(`🎯 TP confermato: ${tp} | 🛑 SL confermato: ${sl}`);
+       } else {
+       console.warn('⚠️ TP/SL non confermati nella risposta di Bybit');
+       }      
 
       if (res.retCode === 0) {
         console.log(`✅ ORDINE ${side} ${pair} inviato con successo. ID: ${res.result.orderId}`);
@@ -337,6 +347,23 @@ try {
     } else {
       console.warn(`⚠️ Tipo entry sconosciuto per ${pair}: ${entry.type}`);
     }
+  }
+}
+async function getPrices() {
+  try {
+    const res = await client.getTickers({ category: 'linear' });
+    const map = {};
+
+    for (const t of res.result.list) {
+      if (t.lastPrice && !isNaN(parseFloat(t.lastPrice))) {
+        map[t.symbol] = parseFloat(t.lastPrice);
+      }
+    }
+
+    return map;
+  } catch (err) {
+    console.error('❌ Errore nel recupero dei prezzi Bybit:', err.message);
+    return {};
   }
 }
 

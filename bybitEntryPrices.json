@@ -1,38 +1,10 @@
 {
-  "XRPUSDT": {
-    "entryPrice": 2.2715,
-    "quantity": 13,
-    "type": "LONG",
-    "trailingPeak": 2.2715,
-    "timestamp": 1748980988724
-  },
-  "1000PEPEUSDT": {
-    "entryPrice": 0.01271,
-    "quantity": 2300,
-    "type": "LONG",
-    "trailingPeak": 0.01271,
-    "timestamp": 1748980989654
-  },
   "WIFUSDT": {
     "entryPrice": 1.0268,
     "quantity": 29,
     "type": "LONG",
     "trailingPeak": 1.0268,
     "timestamp": 1748980990468
-  },
-  "SOPHUSDT": {
-    "entryPrice": 0.06097,
-    "quantity": 490,
-    "type": "SHORT",
-    "trailingPeak": 0.06097,
-    "timestamp": 1748980992614
-  },
-  "FLOCKUSDT": {
-    "entryPrice": 0.27083,
-    "quantity": 110,
-    "type": "LONG",
-    "trailingPeak": 0.27083,
-    "timestamp": 1748980993858
   },
   "ENAUSDT": {
     "entryPrice": 0.3412,
@@ -41,18 +13,60 @@
     "trailingPeak": 0.3412,
     "timestamp": 1748980994740
   },
-  "TRBUSDT": {
-    "entryPrice": 45.55,
-    "quantity": 0.65,
+  "FARTCOINUSDT": {
+    "entryPrice": 1.1059,
+    "quantity": 27,
+    "type": "SHORT",
+    "trailingPeak": 1.1059,
+    "timestamp": 1748983440012
+  },
+  "MOODENGUSDT": {
+    "entryPrice": 0.21325,
+    "quantity": 140,
+    "type": "SHORT",
+    "trailingPeak": 0.21127,
+    "timestamp": 1748983443606
+  },
+  "ADAUSDT": {
+    "entryPrice": 0.6848,
+    "quantity": 43,
+    "type": "SHORT",
+    "trailingPeak": 0.6834,
+    "timestamp": 1748983445507
+  },
+  "XRPUSDT": {
+    "entryPrice": 2.2542,
+    "quantity": 13,
     "type": "LONG",
-    "trailingPeak": 45.55,
-    "timestamp": 1748980995613
+    "trailingPeak": 2.2542,
+    "timestamp": 1748983740094
+  },
+  "1000PEPEUSDT": {
+    "entryPrice": 0.012491,
+    "quantity": 2400,
+    "type": "SHORT",
+    "trailingPeak": 0.012451,
+    "timestamp": 1748983741456
+  },
+  "FLOCKUSDT": {
+    "entryPrice": 0.27702,
+    "quantity": 108,
+    "type": "LONG",
+    "trailingPeak": 0.27729,
+    "timestamp": 1748983744888
+  },
+  "SOPHUSDT": {
+    "entryPrice": 0.06133,
+    "quantity": 480,
+    "type": "SHORT",
+    "trailingPeak": 0.06133,
+    "timestamp": 1748984040352
   },
   "AAVEUSDT": {
-    "entryPrice": 268.64,
+    "entryPrice": 266.4,
     "quantity": 0.11,
     "type": "LONG",
-    "trailingPeak": 268.64,
-    "timestamp": 1748980997518
+    "trailingPeak": 266.4,
+    "timestamp": 1748984044018
   }
 }

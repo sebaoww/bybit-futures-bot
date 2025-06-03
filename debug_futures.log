@@ -198,3 +198,111 @@
   "quantity": 0.11
 }
 
+[2025-06-03T20:43:59.260Z] [FARTCOINUSDT] analyzeSignalV9:
+{
+  "signal": "SHORT",
+  "reentry": null,
+  "indicators": {
+    "ema9": 1.137040503354615,
+    "ema25": 1.146463159764193,
+    "rsi": 40.34,
+    "adx": 26.21143233345017
+  }
+}
+
+[2025-06-03T20:44:02.942Z] [MOODENGUSDT] analyzeSignalV9:
+{
+  "signal": "SHORT",
+  "reentry": null,
+  "indicators": {
+    "ema9": 0.216277426878968,
+    "ema25": 0.21763936098645065,
+    "rsi": 44.2,
+    "adx": 31.572244620861582
+  }
+}
+
+[2025-06-03T20:44:04.918Z] [ADAUSDT] analyzeSignalV9:
+{
+  "signal": "SHORT",
+  "reentry": null,
+  "indicators": {
+    "ema9": 0.6875565090623385,
+    "ema25": 0.6894743878954681,
+    "rsi": 43.81,
+    "adx": 19.157559794967952
+  }
+}
+
+[2025-06-03T20:48:59.016Z] [XRPUSDT] analyzeSignalV9:
+{
+  "signal": "LONG",
+  "reentry": null,
+  "indicators": {
+    "ema9": 2.25594826758441,
+    "ema25": 2.2379973992430147,
+    "rsi": 58.35,
+    "adx": 36.68078086080917
+  }
+}
+
+[2025-06-03T20:49:00.884Z] [1000PEPEUSDT] analyzeSignalV9:
+{
+  "signal": "SHORT",
+  "reentry": null,
+  "indicators": {
+    "ema9": 0.012612288968562462,
+    "ema25": 0.012615215010145415,
+    "rsi": 45.24,
+    "adx": 24.48928181439596
+  }
+}
+
+[2025-06-03T20:49:04.352Z] [FLOCKUSDT] analyzeSignalV9:
+{
+  "signal": "LONG",
+  "reentry": null,
+  "indicators": {
+    "ema9": 0.2721054822294243,
+    "ema25": 0.25721831888989943,
+    "rsi": 62.48,
+    "adx": 53.06646439776749
+  }
+}
+
+[2025-06-03T20:49:06.785Z] [TRBUSDT] analyzeSignalV9:
+{
+  "signal": "LONG",
+  "reentry": null,
+  "indicators": {
+    "ema9": 44.70943891282201,
+    "ema25": 43.82306124030838,
+    "rsi": 58.38,
+    "adx": 36.38146240034804
+  }
+}
+
+[2025-06-03T20:53:59.628Z] [SOPHUSDT] analyzeSignalV9:
+{
+  "signal": "SHORT",
+  "reentry": null,
+  "indicators": {
+    "ema9": 0.06225422692501312,
+    "ema25": 0.06452058667326761,
+    "rsi": 34.66,
+    "adx": 33.32927786436487
+  }
+}
+
+[2025-06-03T20:54:03.532Z] [AAVEUSDT] analyzeSignalV9:
+{
+  "signal": "LONG",
+  "reentry": null,
+  "indicators": {
+    "ema9": 267.56118629499804,
+    "ema25": 265.25860016512337,
+    "rsi": 55.26,
+    "adx": 37.699254931629575
+  }
+}
+
