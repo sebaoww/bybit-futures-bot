@@ -328,23 +328,23 @@ async function executeFutures(pair, prices, entries, TP_PERCENT, SL_PERCENT, TRA
   if (entry && entry.type) {
     let pnl;
 
-    const tpLevels = [3, 6, 9, 12]; // Livelli % PNL
-    const tpPercents = [0.25, 0.25, 0.25, 0.25]; // Quantità da chiudere per ogni TP
+    const TP_LEVELS = [TP_PERCENT, TP_PERCENT * 2, TP_PERCENT * 3, TP_PERCENT * 4];
+    const TP_SHARES = [0.25, 0.25, 0.25, 0.25];
 
     if (entry.type === 'LONG') {
       entry.trailingPeak = Math.max(entry.trailingPeak || price, price);
       const trailStop = entry.trailingPeak * (1 - trailingPercent / 100);
       pnl = ((price - entry.entryPrice) / entry.entryPrice) * 100 * LEVERAGE;
 
-      for (let i = 0; i < tpLevels.length; i++) {
-        if (!entry[`tp${i + 1}`] && pnl >= tpLevels[i]) {
-          const partialQty = entry.quantity * tpPercents[i];
-          await closeOrder(pair, 'Sell', partialQty);
-          entry.quantity -= partialQty;
+      for (let i = 0; i < TP_LEVELS.length; i++) {
+        if (!entry[`tp${i + 1}`] && pnl >= TP_LEVELS[i]) {
+          const qtyToClose = entry.quantity * TP_SHARES[i];
+          await closeOrder(pair, 'Sell', qtyToClose);
+          entry.quantity -= qtyToClose;
           entry[`tp${i + 1}`] = true;
-          logTrade(`🎯 TP${i + 1} LONG ${pair} chiuso @ ${price} (${partialQty})`);
-          await sendTelegram(`🎯 TP${i + 1} LONG raggiunto\n${pair} @ ${price}\nPNL: ${pnl.toFixed(2)}% | Qty chiusa: ${partialQty}`);
           saveEntries(entries);
+          logTrade(`🎯 TP${i + 1} LONG ${pair} chiuso @ ${price} | PNL: ${pnl.toFixed(2)}%`);
+          await sendTelegram(`🎯 TP${i + 1} raggiunto: ${pair} @ ${price} | Qty: ${qtyToClose.toFixed(4)}`);
         }
       }
 
@@ -362,15 +362,15 @@ async function executeFutures(pair, prices, entries, TP_PERCENT, SL_PERCENT, TRA
       const trailStop = entry.trailingPeak * (1 + trailingPercent / 100);
       pnl = ((entry.entryPrice - price) / entry.entryPrice) * 100 * LEVERAGE;
 
-      for (let i = 0; i < tpLevels.length; i++) {
-        if (!entry[`tp${i + 1}`] && pnl >= tpLevels[i]) {
-          const partialQty = entry.quantity * tpPercents[i];
-          await closeOrder(pair, 'Buy', partialQty);
-          entry.quantity -= partialQty;
+      for (let i = 0; i < TP_LEVELS.length; i++) {
+        if (!entry[`tp${i + 1}`] && pnl >= TP_LEVELS[i]) {
+          const qtyToClose = entry.quantity * TP_SHARES[i];
+          await closeOrder(pair, 'Buy', qtyToClose);
+          entry.quantity -= qtyToClose;
           entry[`tp${i + 1}`] = true;
-          logTrade(`🎯 TP${i + 1} SHORT ${pair} chiuso @ ${price} (${partialQty})`);
-          await sendTelegram(`🎯 TP${i + 1} SHORT raggiunto\n${pair} @ ${price}\nPNL: ${pnl.toFixed(2)}% | Qty chiusa: ${partialQty}`);
           saveEntries(entries);
+          logTrade(`🎯 TP${i + 1} SHORT ${pair} chiuso @ ${price} | PNL: ${pnl.toFixed(2)}%`);
+          await sendTelegram(`🎯 TP${i + 1} raggiunto: ${pair} @ ${price} | Qty: ${qtyToClose.toFixed(4)}`);
         }
       }
 
