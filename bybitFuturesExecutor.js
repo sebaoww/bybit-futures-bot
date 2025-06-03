@@ -8,6 +8,7 @@ require('dotenv').config();
 if (!globalThis.crypto) {
   globalThis.crypto = require('crypto');
 }
+const { writeDebugLog } = require('./debugLogger');
 
 const logger = require('./logger');
 const { analyzeSignalV9 } = require('./strategy_futures');
@@ -135,13 +136,14 @@ async function getQtyPrecision(pair) {
       const factor = Math.pow(10, Math.floor(-Math.log10(stepSize)));
       const qty = Math.floor(rawQty * factor) / factor;
       const rounded = parseFloat(qty.toFixed(8)); // Per sicurezza
-      console.log(`🔎 Quantità calcolata per ${pair}: raw=${rawQty}, final=${rounded}`);
   
+      console.log(`🔎 Quantità calcolata per ${pair}: raw=${rawQty}, final=${rounded}`);
       console.log(`📤 Tentativo ordine ${side} ${pair} → qty: ${rounded}`);
+  
       if (!LIVE_MODE) {
         console.log(`🟡 [SIMULAZIONE] Ordine ${side} ${pair} qty: ${rounded} PREZZO: ${price}`);
         await sendTelegram(`🟡 [SIMULAZIONE] ${side} ${pair} — qty: ${rounded} @ ${price}`);
-        return { simulated: true };
+        return { simulated: true, quantity: rounded };
       }
   
       if (rounded <= 0) {
@@ -155,39 +157,35 @@ async function getQtyPrecision(pair) {
         symbol: pair,
         side,
         orderType: 'Market',
-        qty: rounded.toString(), // ✅ stringa come richiesto da Bybit
+        qty: rounded.toString(),
         timeInForce: 'GoodTillCancel',
-        reduceOnly: false
+        reduceOnly: false,
+        takeProfit: (side === 'Buy')
+          ? (price * (1 + TP_PERCENT / 100)).toFixed(4)
+          : (price * (1 - TP_PERCENT / 100)).toFixed(4),
+        stopLoss: (side === 'Buy')
+          ? (price * (1 - SL_PERCENT / 100)).toFixed(4)
+          : (price * (1 + SL_PERCENT / 100)).toFixed(4),
+        tpTriggerBy: 'LastPrice',
+        slTriggerBy: 'LastPrice'
       };
+      
   
       console.log('📦 Parametri ordine:', JSON.stringify(orderParams, null, 2));
   
       const res = await client.submitOrder(orderParams);
   
+      console.log('📬 Risultato completo Bybit:', JSON.stringify(res, null, 2));
+
       if (res.retCode === 0) {
         console.log(`✅ ORDINE ${side} ${pair} inviato con successo. ID: ${res.result.orderId}`);
         await sendTelegram(`✅ ORDINE INVIATO: ${side} ${pair}\nQty: ${rounded}\nPrezzo: ${price}`);
-  
-        // ✅ Salvataggio entry solo se ordine confermato
-        const entries = loadEntries();
-        const trailingPeak = side === 'Buy' ? price : price; // inizializza da prezzo attuale
-        entries[pair] = {
-          entryPrice: price,
-          quantity: rounded,
-          type: side === 'Buy' ? 'LONG' : 'SHORT',
-          timestamp: Date.now(),
-          trailingPeak
-        };
-        saveEntries(entries);
-        return res;
+        return { ...res, quantity: rounded }; // ✅ include qty usata
       } else {
         console.error(`❌ Errore ordine ${pair}: ${res.retMsg}`);
         await sendTelegram(`❌ ERRORE ordine ${side} ${pair}: ${res.retMsg}`);
+        return res; // 👈 ritorna comunque per il debug!
       }
-  
-      console.log('📬 Risultato ordine:', JSON.stringify(res, null, 2));
-      return res;
-  
     } catch (err) {
       console.error(`❌ Errore critico su ${side} ${pair}:`, err.message);
       await sendTelegram(`❌ ERRORE CRITICO ${side} ${pair}: ${err.message}`);
@@ -248,393 +246,150 @@ async function closeOrder(pair, side, qty) {
     }
   }
   
-  async function executeFutures(pair, prices, entries, TP_PERCENT, SL_PERCENT, TRAILING_STOP_PERCENT, config, candles30m) {
-    const price = parseFloat(prices[pair]);
-    if (!price || !botState.active) return;
-  
-    const entry = entries[pair];
-    const trailingPercent = TRAILING_STOP_PERCENT;
-    if (!entry && candles30m) {
-      const signalData = analyzeSignalV9(candles30m, null, null, 0, Date.now());
-      if (!signalData.signal) return;
-    
-      const signal = signalData.signal;
-      const side = signal === 'LONG' ? 'Buy' : 'Sell';
-    
-  const orderResult = await placeOrder(pair, side, TRADE_AMOUNT, price);
-if (!orderResult || orderResult.retCode !== 0) {
-  console.warn(`⚠️ Ordine ${side} fallito per ${pair}.`);
-  console.log('📬 Risposta Bybit:', JSON.stringify(orderResult, null, 2));
-  await sendTelegram(`❌ Ordine ${side} fallito per ${pair}: ${orderResult?.retMsg || 'Errore sconosciuto'}`);
-  return;
+
+
+// ✅ Funzione principale di esecuzione trade
+async function executeFutures(pair, prices, entries, TP_PERCENT, SL_PERCENT, TRAILING_STOP_PERCENT, config, candles30m) {
+  const price = parseFloat(prices[pair]);
+  if (!price || !botState.active) {
+    console.warn(`⚠️ Prezzo non disponibile o bot disattivo per ${pair}`);
+    return;
+  }
+
+  const entry = entries[pair];
+  const trailingPercent = TRAILING_STOP_PERCENT;
+
+  console.log(`🔍 Stato entry per ${pair}:`, entry ? '✅ Esiste' : '❌ Non definita');
+  console.log(`🕯️ Candles30m disponibili: ${Array.isArray(candles30m)}, lunghezza: ${candles30m?.length || 0}`);
+
+  if (!entry && Array.isArray(candles30m) && candles30m.length > 0) {
+    const signalData = analyzeSignalV9(candles30m, null, null, 0, Date.now());
+    writeDebugLog(`[${pair}] analyzeSignalV9`, signalData);
+
+    if (!signalData.signal) {
+      console.warn(`⚠️ Nessun segnale valido per ${pair}`);
+      return;
+    }
+
+    const signal = signalData.signal;
+    const side = signal === 'LONG' ? 'Buy' : 'Sell';
+    const orderResult = await placeOrder(pair, side, TRADE_AMOUNT, price);
+
+    if (!orderResult) return;
+    if (orderResult.simulated) return;
+
+    if (orderResult.retCode !== 0) {
+      await sendTelegram(`❌ Ordine ${side} fallito per ${pair}: ${orderResult?.retMsg || 'Errore sconosciuto'}`);
+      return;
+    }
+
+    const roundedQty = orderResult.quantity || 0;
+    entries[pair] = {
+      entryPrice: price,
+      quantity: roundedQty,
+      type: side === 'Buy' ? 'LONG' : 'SHORT',
+      trailingPeak: price,
+      timestamp: Date.now()
+    };
+    saveEntries(entries);
+    // ✅ Imposta trailing stop direttamente su Bybit
+try {
+  const trailingValue = (price * (TRAILING_STOP_PERCENT / 100)).toFixed(4);
+  await client.setTradingStop({
+    category: 'linear',
+    symbol: pair,
+    trailingStop: trailingValue
+  });
+  console.log(`🔃 Trailing Stop impostato per ${pair} → ${trailingValue}`);
+  await sendTelegram(`🔃 Trailing Stop impostato per ${pair}: ${trailingValue}`);
+} catch (e) {
+  console.warn(`⚠️ Errore impostazione trailing stop per ${pair}: ${e.message}`);
+  await sendTelegram(`⚠️ Errore trailing stop ${pair}: ${e.message}`);
 }
+    logTrade(`🟢 ${signal} ${pair} @ ${price}`);
+    await sendTelegram(`📥 ${signal} ${pair} @ ${price} x${LEVERAGE}`);
+    updateStats(signal);
+    return;
+  }
 
-logTrade(`🟢 ${signal} ${pair} @ ${price}`);
-await sendTelegram(`📥 ${signal} ${pair} @ ${price} x${LEVERAGE}`);
-updateStats(signal);
-
-
-// ✅ Solo qui calcoli qty e salvi l'entry
-const { stepSize } = await getQtyPrecision(pair);
-const rawQty = (TRADE_AMOUNT * LEVERAGE / price);
-const factor = Math.pow(10, Math.floor(-Math.log10(stepSize)));
-const qty = Math.floor(rawQty * factor) / factor;
-const roundedQty = parseFloat(qty.toFixed(8));
-
-entries[pair] = {
-  entryPrice: price,
-  quantity: roundedQty,
-  type: side === 'Buy' ? 'LONG' : 'SHORT',
-  trailingPeak: price,
-  timestamp: Date.now()
-};
-saveEntries(entries);
-
-logTrade(`🟢 ${signal} ${pair} @ ${price}`);
-await sendTelegram(`📥 ${signal} ${pair} @ ${price} x${LEVERAGE}`);
-updateStats(signal);
-
-    
-    } else if (entry && entry.type) {
-
-     
-    
-      if (entry.type === 'LONG') {
-        entry.trailingPeak = Math.max(entry.trailingPeak || price, price);
-        const trailStop = entry.trailingPeak * (1 - trailingPercent / 100);
-        pnl = ((price - entry.entryPrice) / entry.entryPrice) * 100 * LEVERAGE;
-    
-        if (price <= trailStop || pnl >= TP_PERCENT || pnl <= -SL_PERCENT) {
-          await closeOrder(pair, 'Sell', entry.quantity);
-          logTrade(`🔴 CLOSE ${pair} LONG @ ${price} PNL ${pnl.toFixed(2)}%`);
-          await sendTelegram(
-            `📊 *Operazione Bybit Futures (${entry.type.toUpperCase()})*\n` +
-            `📈 Pair: ${pair}\n` +
-            `📥 Entry: ${entry.entryPrice} — 📤 Exit: ${price}\n` +
-            `📦 Qty: ${entry.quantity}\n` +
-            `💰 PNL: ${pnl.toFixed(2)}%`,
-            { parse_mode: 'Markdown' }
-          );
-    
-          updateStats('CLOSE', pnl);
-          delete entries[pair];
-          saveEntries(entries);
-        }
-        let pnl;
-      } else if (entry.type === 'SHORT') {
-        entry.trailingPeak = Math.min(entry.trailingPeak || price, price);
-        const trailStop = entry.trailingPeak * (1 + trailingPercent / 100);
-        pnl = ((entry.entryPrice - price) / entry.entryPrice) * 100 * LEVERAGE;
-    
-        if (price >= trailStop || pnl >= TP_PERCENT || pnl <= -SL_PERCENT) {
-          await closeOrder(pair, 'Buy', entry.quantity);
-          logTrade(`🔴 CLOSE ${pair} SHORT @ ${price} PNL ${pnl.toFixed(2)}%`);
-          await sendTelegram(
-            `📊 *Operazione Bybit Futures (${entry.type.toUpperCase()})*\n` +
-            `📈 Pair: ${pair}\n` +
-            `📥 Entry: ${entry.entryPrice} — 📤 Exit: ${price}\n` +
-            `📦 Qty: ${entry.quantity}\n` +
-            `💰 PNL: ${pnl.toFixed(2)}%`,
-            { parse_mode: 'Markdown' }
-          );
-    
-          updateStats('CLOSE', pnl);
-          delete entries[pair];
-          saveEntries(entries);
-        }
-    
-      } else {
-        logger.warn(`⚠️ Entry per ${pair} con tipo sconosciuto: ${entry.type}`);
+  if (entry && entry.type) {
+    let pnl;
+    if (entry.type === 'LONG') {
+      entry.trailingPeak = Math.max(entry.trailingPeak || price, price);
+      const trailStop = entry.trailingPeak * (1 - trailingPercent / 100);
+      pnl = ((price - entry.entryPrice) / entry.entryPrice) * 100 * LEVERAGE;
+      if (price <= trailStop || pnl >= TP_PERCENT || pnl <= -SL_PERCENT) {
+        await closeOrder(pair, 'Sell', entry.quantity);
+        updateStats('CLOSE', pnl);
+        delete entries[pair];
+        saveEntries(entries);
       }
-    
-    
+    } else if (entry.type === 'SHORT') {
+      entry.trailingPeak = Math.min(entry.trailingPeak || price, price);
+      const trailStop = entry.trailingPeak * (1 + trailingPercent / 100);
+      pnl = ((entry.entryPrice - price) / entry.entryPrice) * 100 * LEVERAGE;
+      if (price >= trailStop || pnl >= TP_PERCENT || pnl <= -SL_PERCENT) {
+        await closeOrder(pair, 'Buy', entry.quantity);
+        updateStats('CLOSE', pnl);
+        delete entries[pair];
+        saveEntries(entries);
+      }
     } else {
-      logger.warn(`⚠️ Entry per ${pair} non definita. Skippato.`);
-    }
-    
-  
-async function getPrices() {
-    try {
-      const res = await client.getTickers({ category: 'linear' });
-      const map = {};
-  
-      for (const t of res.result.list) {
-        if (t.lastPrice && !isNaN(parseFloat(t.lastPrice))) {
-          map[t.symbol] = parseFloat(t.lastPrice);
-        }
-      }
-  
-      return map;
-    } catch (err) {
-      console.error('❌ Errore nel recupero dei prezzi Bybit:', err.message);
-      return {};
-    }
-  }  
-  const ENABLE_ANALYSIS = process.env.ENABLE_ANALYSIS === 'true';
-  if (!ENABLE_ANALYSIS) {
-    console.log('🚫 Analisi disattivata da .env. Terminazione...');
-    process.exit(0);
-  }
-  
-  async function run() {
-    const config = getConfig('bybit');
-  
-    // ✅ Legge dinamico dal file JSON, fallback su .env
-    const dynamic = fs.existsSync('./bybitDynamic.json')
-      ? JSON.parse(fs.readFileSync('./bybitDynamic.json', 'utf8'))
-      : {};
-  
-    const tp = Number.isFinite(dynamic.BYBIT_TP_PERCENT)
-      ? dynamic.BYBIT_TP_PERCENT
-      : parseFloat(process.env.BYBIT_TP_PERCENT || '3');
-  
-    const sl = Number.isFinite(dynamic.BYBIT_SL_PERCENT)
-      ? dynamic.BYBIT_SL_PERCENT
-      : parseFloat(process.env.BYBIT_SL_PERCENT || '1.5');
-  
-    const trailing = Number.isFinite(dynamic.TRAILING_STOP)
-      ? dynamic.TRAILING_STOP
-      : parseFloat(process.env.BYBIT_TRAILING_STOP || '2');
-  
-  
-  
-    console.log('📈 Avvio Bybit Futures Bot...');
-await sendTelegram(
-  `⚙️ Strategia attiva Bybit Futures\n\n` +
-  `🔁 Strategia: v9 (Grumpyshiba)\n` +
-  `📈 Take Profit: ${tp}%\n` +
-  `📉 Stop Loss: -${sl}%\n` +
-  `🔂 Trailing Stop: ${trailing}%\n` +
-  `📊 BollingerBand: ATTIVO ✅`
-);
-    const prices = await getPrices();
-    const entries = loadEntries();
-  
-    // 🔔 Invio riepilogo posizioni aperte all'avvio
-    const openPositions = Object.entries(entries);
-    if (openPositions.length > 0) {
-      let msg = `📂 Posizioni aperte rilevate (${openPositions.length}):\n`;
-      for (const [pair, data] of openPositions) {
-        msg += `• ${pair}: ${data.type} @ ${data.entryPrice} (${data.quantity})\n`;
-      }
-      await sendTelegram(msg);
-    } else {
-      await sendTelegram('✅ Nessuna posizione aperta rilevata all’avvio.');
-    }
-  
-    for (const pair of pairs) {
-      logger.section(`📈 BYBIT FUTURES ─ [${pair}]`);
-      console.log(`🔍 Analizzando ${pair}...`);
-      const price = parseFloat(prices[pair]);
-      const entry = entries[pair]; // spostato subito dopo il prezzo
-      
-      if (!price || !botState.active) {
-        console.log(`⚠️ Skippato ${pair} — prezzo nullo o bot disattivo`);
-        continue;
-      }
-      
-      if (entry && !entry.type) {
-        logger.warn(`⚠️ Warning: ${pair} ha una entry ma manca 'type':`, JSON.stringify(entry));
-      }
-      
-      
-      const candles30m = await client.getKline({
-        category: 'linear',
-        symbol: pair,
-        interval: '30',
-        limit: 100,
-      });
-  
-      const formatCandles = (list) =>
-        list.result.list.reverse().map((c) => ({
-          close: parseFloat(c[4]),
-          high: parseFloat(c[2]),
-          low: parseFloat(c[3]),
-        }));
-        
-      const formatted30m = formatCandles(candles30m);
-  
-      if (!entry) {
-        const signalData = analyzeSignalV9(
-          formatted30m,
-          null,
-          null,
-          0,
-          Date.now()
-        );
-        
-        if (VERBOSE_MODE) {
-          const { signal, indicators } = signalData;
-          const signalText = signal ? `📢 *Segnale ${signal}*` : '❌ Nessun segnale valido.';
-          const verboseMsg = `📊 *${pair} [30m]*\n` +
-                          `EMA: ${indicators.ema9?.toFixed(4)} vs ${indicators.ema25?.toFixed(4)}\n` +
-                           `RSI: ${indicators.rsi?.toFixed(2)}\n` +
-                           `ADX: ${indicators.adx?.toFixed(2)}\n` +
-                           `${signalText}`;
-
-          await sendTelegram(verboseMsg);
-        }
-        
-        if (signalData.signal) {
-          console.log(`✅ Segnale ${signalData.signal} rilevato per ${pair}`);
-          await executeFutures(
-            pair,
-            prices,
-            entries,
-            tp,
-            sl,
-            trailing,
-            config,
-            null,            // 5m lo metti a null
-            formatted30m     // solo 30m attivo
-          );
-          
-        } else {
-          console.log(`⚪ Nessun segnale valido per ${pair}`);
-        }
-      } else {
-        console.log(`📊 ${pair} ha posizione aperta (${entry.type}) — controllo PNL...`);
-        logger.info(`✅ Analisi completata. In attesa del prossimo ciclo...`);
-
-        await executeFutures(
-          pair,
-          prices,
-          entries,
-          tp,
-          sl,
-          trailing,
-          config,
-          null,
-          formatted30m
-        );
-      }
-    }
-  
-    console.log('⏱️ Attesa 5 minuti per la prossima analisi...\n');
-  }
-  setInterval(run, 5 * 60 * 1000);
-  run();
-}
-async function analyzeAndTrade() {
-  const { trading } = getConfig('bybit');
-  const pairs = require('./futuresPairs');
-  const now = Date.now();
-
-  for (const pair of pairs) {
-    try {
-      logger.info(`📊 Analisi della coppia: ${pair}...`);
-
-      const klines5m = await fetchOHLC(pair, '5');
-      const klines30m = await fetchOHLC(pair, '30');
-
-      if (!klines5m || klines5m.length < 50 || !klines30m || klines30m.length < 50) {
-        logger.warn(`⚠️ Dati insufficienti per ${pair}`);
-        continue;
-      }
-
-      const signal = analyzeSignalV9(klines30m, klines5m);
-      if (signal && ['LONG', 'SHORT'].includes(signal)) {
-        logger.info(`📈 Segnale ${signal} per ${pair}`);
-        await handleSignal(pair, signal, klines30m.at(-1).close);
-      } else {
-        logger.info(`⛔ Nessun segnale valido per ${pair}`);
-      }
-
-    } catch (err) {
-      logger.error(`❌ Errore durante l’analisi di ${pair}: ${err.message}`);
+      console.warn(`⚠️ Tipo entry sconosciuto per ${pair}: ${entry.type}`);
     }
   }
 }
-// 📈 Funzione per ottenere dati OHLC da Bybit
-const fetchOHLC = async (symbols, interval = '30') => {
-  const results = {};
 
-  for (const symbol of symbols) {
-    try {
-      const url = `https://api.bybit.com/v5/market/kline?category=linear&symbol=${symbol}&interval=${interval}&limit=100`;
-      const res = await fetch(url);
-      const data = await res.json();
-
-      if (data.retCode === 0 && data.result?.list?.length > 0) {
-        const candles = data.result.list.map(c => ({
-          time: +c[0],
-          open: +c[1],
-          high: +c[2],
-          low: +c[3],
-          close: +c[4],
-          volume: +c[5]
-        }));
-        results[symbol] = candles;
-      } else {
-        console.warn(`⚠️ Nessun dato OHLC per ${symbol}`);
-      }
-    } catch (err) {
-      console.error(`❌ Errore OHLC ${symbol}: ${err.message}`);
-    }
-  }
-
-  return results;
-};
-
+// ✅ Funzione principale run()
 async function run() {
-  const timestamp = new Date().toISOString();
-  console.log(`🚀 Analisi avviata: ${timestamp}`);
-
+  console.log('🚨 run() eseguita');
   const config = getConfig('bybit');
-  const { trading } = config;
-  const tp = trading.takeProfitPercentage;
-  const sl = trading.stopLossPercentage;
-  const trailing = trading.trailingStopPercent;
+  console.log('🧪 DEBUG MODE attivo');
+  console.log('LIVE_MODE:', LIVE_MODE, '| DRY_RUN:', DRY_RUN);
+  console.log('Bot attivo:', botState.active);
 
+  const dynamic = fs.existsSync('./bybitDynamic.json')
+    ? JSON.parse(fs.readFileSync('./bybitDynamic.json', 'utf8'))
+    : {};
+
+  const tp = Number.isFinite(dynamic.BYBIT_TP_PERCENT) ? dynamic.BYBIT_TP_PERCENT : parseFloat(process.env.BYBIT_TP_PERCENT || '3');
+  const sl = Number.isFinite(dynamic.BYBIT_SL_PERCENT) ? dynamic.BYBIT_SL_PERCENT : parseFloat(process.env.BYBIT_SL_PERCENT || '1.5');
+  const trailing = Number.isFinite(dynamic.TRAILING_STOP) ? dynamic.TRAILING_STOP : parseFloat(process.env.BYBIT_TRAILING_STOP || '2');
+
+  const prices = await getPrices();
   const entries = loadEntries();
-  const prices = await fetchPrices(pairs);
-
-  const formatted30m = await fetchOHLC(pairs, '30');
 
   for (const pair of pairs) {
+    logger.section(`📈 BYBIT FUTURES ─ [${pair}]`);
+    const price = parseFloat(prices[pair]);
     const entry = entries[pair];
-    const price = prices[pair];
 
-    if (!price || !formatted30m[pair]) {
-      console.warn(`⛔ Dati mancanti per ${pair}, skippato.`);
-      continue;
-    }
+    if (!price || !botState.active) continue;
 
-    if (!entry) {
-      const signal = analyzeSignalV9(formatted30m[pair]);
-      if (signal && signal.side) {
-        await openPosition(pair, signal.side, price, config, entries);
-      } else {
-        console.log(`🟡 Nessun segnale valido per ${pair}.`);
-      }
+    const candlesRaw = await client.getKline({ category: 'linear', symbol: pair, interval: '30', limit: 100 });
+    if (!candlesRaw || !candlesRaw.result || !Array.isArray(candlesRaw.result.list) || candlesRaw.result.list.length === 0) continue;
+
+    const formattedCandles = candlesRaw.result.list.reverse().map(c => ({
+      close: parseFloat(c[4]),
+      high: parseFloat(c[2]),
+      low: parseFloat(c[3]),
+    }));
+
+    const signalData = analyzeSignalV9(formattedCandles, null, null, 0, Date.now());
+    if (signalData.signal) {
+      console.log(`✅ Segnale ${signalData.signal} rilevato per ${pair}`);
+      await executeFutures(pair, prices, entries, tp, sl, trailing, config, formattedCandles);
     } else {
-      let pnl;
-      if (entry.type === 'LONG') {
-        entry.trailingPeak = Math.max(entry.trailingPeak, price);
-        const trailStop = entry.trailingPeak * (1 - trailing / 100);
-        pnl = ((price - entry.entryPrice) / entry.entryPrice) * 100 * LEVERAGE;
-
-        if (price <= trailStop || pnl >= tp || pnl <= -sl) {
-          await closeOrder(pair, 'Sell', entry.quantity);
-          delete entries[pair];
-          saveEntries(entries);
-        }
-      } else if (entry.type === 'SHORT') {
-        entry.trailingPeak = Math.min(entry.trailingPeak, price);
-        const trailStop = entry.trailingPeak * (1 + trailing / 100);
-        pnl = ((entry.entryPrice - price) / entry.entryPrice) * 100 * LEVERAGE;
-
-        if (price >= trailStop || pnl >= tp || pnl <= -sl) {
-          await closeOrder(pair, 'Buy', entry.quantity);
-          delete entries[pair];
-          saveEntries(entries);
-        }
-      }
+      console.log(`⚪ Nessun segnale valido per ${pair}`);
     }
   }
 
   console.log('⏱️ Attesa 5 minuti per la prossima analisi...\n');
 }
 
-setInterval(run, 5 * 60 * 1000);
-run();
+module.exports = { run };
+
+if (require.main === module || process.env.FORCE_RUN === 'true') {
+  run();
+  setInterval(run, 5 * 60 * 1000);
+}

@@ -1,0 +1,58 @@
+{
+  "XRPUSDT": {
+    "entryPrice": 2.2715,
+    "quantity": 13,
+    "type": "LONG",
+    "trailingPeak": 2.2715,
+    "timestamp": 1748980988724
+  },
+  "1000PEPEUSDT": {
+    "entryPrice": 0.01271,
+    "quantity": 2300,
+    "type": "LONG",
+    "trailingPeak": 0.01271,
+    "timestamp": 1748980989654
+  },
+  "WIFUSDT": {
+    "entryPrice": 1.0268,
+    "quantity": 29,
+    "type": "LONG",
+    "trailingPeak": 1.0268,
+    "timestamp": 1748980990468
+  },
+  "SOPHUSDT": {
+    "entryPrice": 0.06097,
+    "quantity": 490,
+    "type": "SHORT",
+    "trailingPeak": 0.06097,
+    "timestamp": 1748980992614
+  },
+  "FLOCKUSDT": {
+    "entryPrice": 0.27083,
+    "quantity": 110,
+    "type": "LONG",
+    "trailingPeak": 0.27083,
+    "timestamp": 1748980993858
+  },
+  "ENAUSDT": {
+    "entryPrice": 0.3412,
+    "quantity": 87,
+    "type": "LONG",
+    "trailingPeak": 0.3412,
+    "timestamp": 1748980994740
+  },
+  "TRBUSDT": {
+    "entryPrice": 45.55,
+    "quantity": 0.65,
+    "type": "LONG",
+    "trailingPeak": 45.55,
+    "timestamp": 1748980995613
+  },
+  "AAVEUSDT": {
+    "entryPrice": 268.64,
+    "quantity": 0.11,
+    "type": "LONG",
+    "trailingPeak": 268.64,
+    "timestamp": 1748980997518
+  }
+}

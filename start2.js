@@ -2,21 +2,7 @@
 
 const { spawn, exec } = require('child_process');
 
-// 🕒 Avvia subito il fetch delle coppie da Bybit
-exec('node fetchBybitPairs.js', (err, stdout, stderr) => {
-  if (err) return console.error('❌ Errore fetchBybitPairs:', err.message);
-  console.log(stdout);
-});
-
-// 🕒 Ogni 12 ore aggiorna le coppie Bybit
-setInterval(() => {
-  exec('node fetchBybitPairs.js', (err, stdout, stderr) => {
-    if (err) return console.error('❌ Errore fetchBybitPairs:', err.message);
-    console.log(stdout);
-  });
-}, 12 * 60 * 60 * 1000); // ogni 12 ore
-
-// 🧠 Funzione per avviare uno script separato
+// ✅ Funzione per lanciare script con log chiaro
 function runScript(name) {
   const child = spawn('node', [name], { stdio: 'inherit' });
 
@@ -29,8 +15,26 @@ function runScript(name) {
   });
 }
 
-// ▶️ Avvio moduli principali
-console.log('🚀 Avvio bot AI: Bybit FUTURES + Telegram...');
+// 🚀 Avvio messaggi iniziali
+console.log('\n🚀 Avvio bot AI: Bybit FUTURES + Telegram...\n');
 
-runScript('bybitFuturesExecutor.js'); // 📈 Analisi e trade futures
-runScript('telegramBot.js');          // 🤖 Bot Telegram
+// ▶️ Avvia subito il fetch delle top coppie da Bybit
+exec('node fetchBybitPairs.js', (err, stdout, stderr) => {
+  if (err) {
+    console.error('❌ Errore fetchBybitPairs:', err.message);
+  } else {
+    console.log(stdout.trim());
+    // Dopo fetch completato, avvia i moduli principali
+    runScript('bybitFuturesExecutor.js'); // 📈 Bot futures
+    runScript('telegramBot.js');          // 🤖 Bot Telegram
+  }
+});
+
+// ⏱️ Aggiorna le coppie Bybit ogni 12 ore
+setInterval(() => {
+  console.log('\n⏳ Aggiornamento programmato delle coppie Bybit...\n');
+  exec('node fetchBybitPairs.js', (err, stdout, stderr) => {
+    if (err) return console.error('❌ Errore fetchBybitPairs:', err.message);
+    console.log(stdout.trim());
+  });
+}, 12 * 60 * 60 * 1000);

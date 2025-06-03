@@ -1,0 +1,200 @@
+[2025-06-03T20:03:08.051Z] [XRPUSDT] analyzeSignalV9:
+{
+  "signal": "LONG",
+  "reentry": null,
+  "indicators": {
+    "ema9": 2.2608403344808625,
+    "ema25": 2.238366270232925,
+    "rsi": 68.86,
+    "adx": 39.88353231649692
+  }
+}
+
+[2025-06-03T20:03:08.724Z] [XRPUSDT] orderResult:
+{
+  "retCode": 0,
+  "retMsg": "OK",
+  "result": {
+    "orderId": "1ef0132e-3a7a-47dd-9271-cbecfb60c49a",
+    "orderLinkId": ""
+  },
+  "retExtInfo": {},
+  "time": 1748980988567,
+  "quantity": 13
+}
+
+[2025-06-03T20:03:09.101Z] [1000PEPEUSDT] analyzeSignalV9:
+{
+  "signal": "LONG",
+  "reentry": null,
+  "indicators": {
+    "ema9": 0.01269836121069161,
+    "ema25": 0.01264707389018773,
+    "rsi": 53.73,
+    "adx": 25.755053863347683
+  }
+}
+
+[2025-06-03T20:03:09.653Z] [1000PEPEUSDT] orderResult:
+{
+  "retCode": 0,
+  "retMsg": "OK",
+  "result": {
+    "orderId": "1c6a4acf-49cd-454d-bb50-b1b6e8814402",
+    "orderLinkId": ""
+  },
+  "retExtInfo": {},
+  "time": 1748980989577,
+  "quantity": 2300
+}
+
+[2025-06-03T20:03:09.960Z] [WIFUSDT] analyzeSignalV9:
+{
+  "signal": "LONG",
+  "reentry": null,
+  "indicators": {
+    "ema9": 1.020475748207405,
+    "ema25": 1.0030408686480043,
+    "rsi": 59.7,
+    "adx": 45.77706899188682
+  }
+}
+
+[2025-06-03T20:03:10.458Z] [WIFUSDT] orderResult:
+{
+  "retCode": 0,
+  "retMsg": "OK",
+  "result": {
+    "orderId": "334652ec-ac7e-4010-ab6c-2811161e3d87",
+    "orderLinkId": ""
+  },
+  "retExtInfo": {},
+  "time": 1748980990426,
+  "quantity": 29
+}
+
+[2025-06-03T20:03:11.704Z] [SOPHUSDT] analyzeSignalV9:
+{
+  "signal": "SHORT",
+  "reentry": null,
+  "indicators": {
+    "ema9": 0.06252928365640173,
+    "ema25": 0.06480379043471471,
+    "rsi": 32.05,
+    "adx": 31.9389818200619
+  }
+}
+
+[2025-06-03T20:03:12.614Z] [SOPHUSDT] orderResult:
+{
+  "retCode": 0,
+  "retMsg": "OK",
+  "result": {
+    "orderId": "1479346a-26d3-481c-8911-83688be2853f",
+    "orderLinkId": ""
+  },
+  "retExtInfo": {},
+  "time": 1748980992487,
+  "quantity": 490
+}
+
+[2025-06-03T20:03:12.980Z] [FLOCKUSDT] analyzeSignalV9:
+{
+  "signal": "LONG",
+  "reentry": null,
+  "indicators": {
+    "ema9": 0.27121135279030617,
+    "ema25": 0.25568368820164883,
+    "rsi": 60.24,
+    "adx": 53.37593536666929
+  }
+}
+
+[2025-06-03T20:03:13.858Z] [FLOCKUSDT] orderResult:
+{
+  "retCode": 0,
+  "retMsg": "OK",
+  "result": {
+    "orderId": "f03cd2ab-0b15-4c9f-b65e-0ee74e17888c",
+    "orderLinkId": ""
+  },
+  "retExtInfo": {},
+  "time": 1748980993768,
+  "quantity": 110
+}
+
+[2025-06-03T20:03:14.168Z] [ENAUSDT] analyzeSignalV9:
+{
+  "signal": "LONG",
+  "reentry": null,
+  "indicators": {
+    "ema9": 0.340916691236479,
+    "ema25": 0.33930716696140223,
+    "rsi": 53.57,
+    "adx": 19.62100774937836
+  }
+}
+
+[2025-06-03T20:03:14.739Z] [ENAUSDT] orderResult:
+{
+  "retCode": 0,
+  "retMsg": "OK",
+  "result": {
+    "orderId": "b5401e4a-50e1-49c1-a487-2b4590e81c68",
+    "orderLinkId": ""
+  },
+  "retExtInfo": {},
+  "time": 1748980994640,
+  "quantity": 87
+}
+
+[2025-06-03T20:03:15.093Z] [TRBUSDT] analyzeSignalV9:
+{
+  "signal": "LONG",
+  "reentry": null,
+  "indicators": {
+    "ema9": 44.862798641163266,
+    "ema25": 43.812282518216264,
+    "rsi": 63.21,
+    "adx": 36.47234596366563
+  }
+}
+
+[2025-06-03T20:03:15.604Z] [TRBUSDT] orderResult:
+{
+  "retCode": 0,
+  "retMsg": "OK",
+  "result": {
+    "orderId": "64cc0101-40bd-4f47-831b-4d92aa27490f",
+    "orderLinkId": ""
+  },
+  "retExtInfo": {},
+  "time": 1748980995558,
+  "quantity": 0.65
+}
+
+[2025-06-03T20:03:17.033Z] [AAVEUSDT] analyzeSignalV9:
+{
+  "signal": "LONG",
+  "reentry": null,
+  "indicators": {
+    "ema9": 268.3274828688969,
+    "ema25": 265.34658259036024,
+    "rsi": 63.83,
+    "adx": 41.328784070548544
+  }
+}
+
+[2025-06-03T20:03:17.509Z] [AAVEUSDT] orderResult:
+{
+  "retCode": 0,
+  "retMsg": "OK",
+  "result": {
+    "orderId": "a64e0467-aac5-44d0-844f-aa3b406e1220",
+    "orderLinkId": ""
+  },
+  "retExtInfo": {},
+  "time": 1748980997481,
+  "quantity": 0.11
+}
+
