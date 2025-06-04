@@ -12,6 +12,7 @@ const { writeDebugLog } = require('./debugLogger');
 
 const logger = require('./logger');
 const { analyzeSignalV9 } = require('./strategy_futures');
+const { analyzeSignalV10 } = require('./strategy_futures_v10'); // ✅ nuova strategia V10
 const LIVE_MODE = process.env.LIVE_MODE === 'true';
 const DRY_RUN = process.env.DRY_RUN === 'true';
 
@@ -103,15 +104,19 @@ async function getCandles(symbol, interval = '30') {
   try {
     const res = await client.getKline({ category: 'linear', symbol, interval, limit: 100 });
     return res.result.list.reverse().map(c => ({
-      close: parseFloat(c[4]),
+      timestamp: +c[0],
+      open: parseFloat(c[1]),
       high: parseFloat(c[2]),
       low: parseFloat(c[3]),
+      close: parseFloat(c[4]),
+      volume: parseFloat(c[5])
     }));
   } catch (e) {
     console.warn(`⚠️ Errore OHLC ${symbol} [${interval}m]: ${e.message}`);
     return [];
   }
 }
+
 
 
 
@@ -273,14 +278,22 @@ async function executeFutures(pair, prices, entries, TP_PERCENT, SL_PERCENT, TRA
   console.log(`🕯️ Candles30m disponibili: ${Array.isArray(candles30m)}, lunghezza: ${candles30m?.length || 0}`);
 
   if (!entry && Array.isArray(candles30m) && candles30m.length > 0) {
-    const signalData = analyzeSignalV9(candles30m, null, null, 0, Date.now());
-    writeDebugLog(`[${pair}] analyzeSignalV9`, signalData);
-
+    
+    const dynamic = fs.existsSync('./bybitDynamic.json')
+    ? JSON.parse(fs.readFileSync('./bybitDynamic.json', 'utf8'))
+    : {};
+  
+  if (!entry && Array.isArray(candles30m) && candles30m.length > 0) {
+    const signalData = dynamic?.USE_V10 === true
+      ? analyzeSignalV10(candles30m, [], null, 0, Date.now())
+      : analyzeSignalV9(candles30m, null, null, 0, Date.now());
+    writeDebugLog(`[${pair}] analyzeSignal`, signalData);
+  
     if (!signalData.signal) {
       console.warn(`⚠️ Nessun segnale valido per ${pair}`);
       return;
     }
-
+  }
     const signal = signalData.signal;
     const side = signal === 'LONG' ? 'Buy' : 'Sell';
     const orderResult = await placeOrder(pair, side, TRADE_AMOUNT, price);
@@ -421,7 +434,7 @@ async function run() {
 
   const tp = Number.isFinite(dynamic.BYBIT_TP_PERCENT) ? dynamic.BYBIT_TP_PERCENT : parseFloat(process.env.BYBIT_TP_PERCENT || '3');
   const sl = Number.isFinite(dynamic.BYBIT_SL_PERCENT) ? dynamic.BYBIT_SL_PERCENT : parseFloat(process.env.BYBIT_SL_PERCENT || '1.5');
-  const trailing = Number.isFinite(dynamic.TRAILING_STOP) ? dynamic.TRAILING_STOP : parseFloat(process.env.BYBIT_TRAILING_STOP || '2');
+  const trailing = Number.isFinite(dynamic.BYBIT_TRAILING_STOP) ? dynamic.BYBIT_TRAILING_STOP : parseFloat(process.env.BYBIT_TRAILING_STOP || '2');
 
   const prices = await getPrices();
   const entries = loadEntries();
@@ -433,16 +446,22 @@ async function run() {
 
     if (!price || !botState.active) continue;
 
-    const candlesRaw = await client.getKline({ category: 'linear', symbol: pair, interval: '30', limit: 100 });
-    if (!candlesRaw || !candlesRaw.result || !Array.isArray(candlesRaw.result.list) || candlesRaw.result.list.length === 0) continue;
+    const candles = await getCandles(pair, '30');
+    if (candles.length < 30) continue; // 🔁 Non abbastanza dati per V10
 
-    const formattedCandles = candlesRaw.result.list.reverse().map(c => ({
-      close: parseFloat(c[4]),
-      high: parseFloat(c[2]),
-      low: parseFloat(c[3]),
+    const formattedCandles = candles.map(c => ({
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close
     }));
+    const volumes = candles.map(c => c.volume);
 
-    const signalData = analyzeSignalV9(formattedCandles, null, null, 0, Date.now());
+    const useV10 = dynamic?.USE_V10 === true;
+    const signalData = useV10
+      ? analyzeSignalV10(formattedCandles, volumes, entry?.type, entry?.timestamp, Date.now())
+      : analyzeSignalV9(formattedCandles, null, entry?.type, entry?.timestamp, Date.now());
+
     if (signalData.signal) {
       console.log(`✅ Segnale ${signalData.signal} rilevato per ${pair}`);
       await executeFutures(pair, prices, entries, tp, sl, trailing, config, formattedCandles);

@@ -40,7 +40,7 @@ function calculateSuperTrend(candles, atrPeriod = 10, multiplier = 3) {
     const lowerBand = hl2 - multiplier * atr[i - atrPeriod];
 
     const prevClose = close[i - 1];
-    const prevTrend = supertrend[i - atrPeriod - 1] ?? true;
+    const prevTrend = supertrend.at(-1) ?? true;
 
     const isUptrend = prevClose > (prevTrend ? lowerBand : upperBand);
     supertrend.push(isUptrend);
