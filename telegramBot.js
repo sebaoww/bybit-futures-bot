@@ -115,28 +115,84 @@ bot.command('strategy', async (ctx) => {
 
   ctx.reply(msg, { parse_mode: 'Markdown' });
 });
-// /fstrategy
+// /fstrategy - Cambia strategia tra V9 e V10 dinamicamente
 bot.command('fstrategy', (ctx) => {
   if (ctx.chat.id.toString() !== process.env.CHAT_ID) return;
 
-  const config = fs.existsSync('./bybitDynamic.json')
-    ? JSON.parse(fs.readFileSync('./bybitDynamic.json', 'utf8'))
-    : {};
+  const configPath = './bybitDynamic.json';
+  let config = {};
+  if (fs.existsSync(configPath)) {
+    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  }
 
-  const useSuperTrend = process.env.USE_SUPERTREND === 'true';
-  const trailingStop = process.env.TRAILING_STOP || 'n.d.';
-  const tp = config.TAKE_PROFIT ?? process.env.TAKE_PROFIT;
-  const sl = config.STOP_LOSS ?? process.env.STOP_LOSS;
+  // Inverti la strategia attiva
+  config.USE_V10 = !config.USE_V10;
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 
-  const msg = `⚙️ *Strategia attiva Bybit Futures*
+  const activeStrategy = config.USE_V10 ? '🧠 V10 (Pro)' : '⚙️ V9 (Base)';
+  ctx.reply(`✅ Strategia Bybit aggiornata:\nAttiva ora: *${activeStrategy}*`, {
+    parse_mode: 'Markdown'
+  });
+});
+// /fversion - Mostra la strategia attiva per Bybit Futures
+bot.command('fversion', (ctx) => {
+  if (ctx.chat.id.toString() !== process.env.CHAT_ID) return;
 
-🔁 Strategia: *v6 (SuperTrend Optional)*
-📈 Take Profit: ${tp}%
-📉 Stop Loss: ${sl}%
-🔂 Trailing Stop: ${trailingStop}%
-🧠 SuperTrend: *${useSuperTrend ? 'ATTIVO ✅' : 'DISATTIVO ❌'}*`;
+  const configPath = './bybitDynamic.json';
+  let config = {};
+  if (fs.existsSync(configPath)) {
+    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  }
 
-  ctx.reply(msg, { parse_mode: 'Markdown' });
+  const activeStrategy = config.USE_V10 ? '🧠 V10 (Pro)' : '⚙️ V9 (Base)';
+  ctx.reply(`📌 Strategia attiva Bybit:\n*${activeStrategy}*`, {
+    parse_mode: 'Markdown'
+  });
+});
+// /fadmin - Riepilogo con bottoni inline per strategia Bybit
+bot.command('fadmin', (ctx) => {
+  if (ctx.chat.id.toString() !== process.env.CHAT_ID) return;
+
+  const configPath = './bybitDynamic.json';
+  let config = {};
+  if (fs.existsSync(configPath)) {
+    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  }
+
+  const tp = config.TAKE_PROFIT ?? process.env.BYBIT_TP_PERCENT ?? 'n.d.';
+  const sl = config.STOP_LOSS ?? process.env.BYBIT_SL_PERCENT ?? 'n.d.';
+  const trailing = config.TRAILING_STOP ?? process.env.BYBIT_TRAILING_STOP ?? 'n.d.';
+  const strategy = config.USE_V10 ? '🧠 V10 (Pro)' : '⚙️ V9 (Base)';
+  const live = process.env.LIVE_MODE === 'true';
+  const dry = process.env.DRY_RUN === 'true';
+
+  let status = 'DRY_RUN 🧪';
+  if (live && dry) status = 'LIVE + SIMULAZIONE ⚠️';
+  else if (live && !dry) status = 'LIVE 🔥';
+
+  const msg = `🛠️ *Riepilogo Strategia Bybit*
+
+📌 Strategia: *${strategy}*
+🎯 Take Profit: ${tp}%
+🛑 Stop Loss: ${sl}%
+🔃 Trailing Stop: ${trailing}%
+📟 Modalità attiva: *${status}*`;
+
+  ctx.reply(msg, {
+    parse_mode: 'Markdown',
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '🔁 Cambia Strategia', callback_data: 'toggle_strategy' },
+          { text: '📈 Posizioni', callback_data: 'show_positions' }
+        ],
+        [
+          { text: '💰 PNL', callback_data: 'show_pnl' },
+          { text: '📊 Statistiche', callback_data: 'show_stats' }
+        ]
+      ]
+    }
+  });
 });
 
 // /settp
@@ -554,6 +610,43 @@ bot.command('frestart', (ctx) => {
   setTimeout(() => {
     process.exit(0); // Railway o Render lo riavvieranno automaticamente
   }, 1000);
+});
+
+
+bot.on('callback_query', async (ctx) => {
+  const data = ctx.callbackQuery.data;
+  const configPath = './bybitDynamic.json';
+
+  switch (data) {
+    case 'toggle_strategy':
+      let config = fs.existsSync(configPath)
+        ? JSON.parse(fs.readFileSync(configPath, 'utf8'))
+        : {};
+      config.USE_V10 = !config.USE_V10;
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+      const strategy = config.USE_V10 ? '🧠 V10 (Pro)' : '⚙️ V9 (Base)';
+      await ctx.answerCbQuery();
+      await ctx.reply(`✅ Strategia aggiornata: *${strategy}*`, { parse_mode: 'Markdown' });
+      break;
+
+    case 'show_positions':
+      ctx.telegram.sendMessage(ctx.chat.id, '/fpositions');
+      await ctx.answerCbQuery();
+      break;
+
+    case 'show_pnl':
+      ctx.telegram.sendMessage(ctx.chat.id, '/fpnl');
+      await ctx.answerCbQuery();
+      break;
+
+    case 'show_stats':
+      ctx.telegram.sendMessage(ctx.chat.id, '/fstats');
+      await ctx.answerCbQuery();
+      break;
+
+    default:
+      await ctx.answerCbQuery('Comando non riconosciuto.');
+  }
 });
 
 
