@@ -24,9 +24,9 @@ exec('node fetchBybitPairs.js', (err, stdout, stderr) => {
     console.error('❌ Errore fetchBybitPairs:', err.message);
   } else {
     console.log(stdout.trim());
-    // Dopo fetch completato, avvia i moduli principali
-    runScript('bybitFuturesExecutor.js'); // 📈 Bot futures
-    runScript('telegramBot.js');          // 🤖 Bot Telegram
+    // ✅ Usa il file .cjs corretto
+    runScript('bybitFuturesExecutor.cjs'); // 📈 Bot futures
+    runScript('telegramBot.js');           // 🤖 Bot Telegram
   }
 });
 

@@ -306,3 +306,51 @@
   }
 }
 
+[2025-06-04T22:28:23.621Z] [LPTUSDT] analyzeSignal:
+{
+  "signal": null,
+  "reentry": null,
+  "indicators": {
+    "ema9": 8.541322823190617,
+    "ema25": 8.119394212538595,
+    "ema200": 8.443385,
+    "rsi": 88.03,
+    "adx": 43.310968617769745,
+    "supertrend": true,
+    "macdHist": 0.19042106509479118,
+    "volumeSpike": false
+  }
+}
+
+[2025-06-04T22:33:20.985Z] [LPTUSDT] analyzeSignal:
+{
+  "signal": null,
+  "reentry": null,
+  "indicators": {
+    "ema9": 8.858258258552494,
+    "ema25": 8.273748495168759,
+    "ema200": 8.446594999999999,
+    "rsi": 91.65,
+    "adx": 46.39131553822669,
+    "supertrend": true,
+    "macdHist": 0.24605981502868043,
+    "volumeSpike": false
+  }
+}
+
+[2025-06-04T22:38:21.650Z] [LPTUSDT] analyzeSignal:
+{
+  "signal": null,
+  "reentry": null,
+  "indicators": {
+    "ema9": 8.858258258552494,
+    "ema25": 8.273748495168759,
+    "ema200": 8.446594999999999,
+    "rsi": 91.65,
+    "adx": 46.39131553822669,
+    "supertrend": true,
+    "macdHist": 0.24605981502868043,
+    "volumeSpike": false
+  }
+}
+

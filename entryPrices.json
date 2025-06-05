@@ -1,0 +1,22 @@
+{
+  "FLOKIUSDC": {
+    "entryPrice": 0.00010021,
+    "quantity": 99790,
+    "timestamp": "2025-05-28T16:24:38.808Z"
+  },
+  "WIFUSDC": {
+    "entryPrice": 1.102,
+    "quantity": 9.07,
+    "timestamp": "2025-05-28T16:34:34.312Z"
+  },
+  "1000SATSUSDC": {
+    "entryPrice": 0.0000542,
+    "quantity": 184502,
+    "timestamp": "2025-05-28T21:19:35.522Z"
+  },
+  "OPUSDC": {
+    "entryPrice": 0.76,
+    "quantity": 13.16,
+    "timestamp": "2025-05-28T21:24:35.365Z"
+  }
+}

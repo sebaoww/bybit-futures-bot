@@ -68,5 +68,12 @@
     "type": "LONG",
     "trailingPeak": 266.4,
     "timestamp": 1748984044018
+  },
+  "RVNUSDT": {
+    "entryPrice": 0.01604,
+    "quantity": 1870,
+    "type": "LONG",
+    "trailingPeak": 0.01604,
+    "timestamp": 1749124960836
   }
 }
